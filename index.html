@@ -88,7 +88,7 @@ let gameOver = false;
 
 let leonard = {
   col: Math.floor(COLS / 2),
-  row: ROWS - 2,
+  row: ROWS - 1,
   x: 0,
   y: 0,
   targetX: 0,
@@ -99,7 +99,7 @@ let leonard = {
 
 function initLeonard() {
   leonard.col = Math.floor(COLS / 2);
-  leonard.row = ROWS - 2;
+  leonard.row = ROWS - 1;
   leonard.x = leonard.col * TILE;
   leonard.y = leonard.row * TILE;
   leonard.targetX = leonard.x;
@@ -137,6 +137,10 @@ function generateWaterRow(rowIndex) {
 }
 
 function generateRow(rowIndex) {
+  if (rowIndex === ROWS - 1) {
+    return new Array(COLS).fill(TERRAIN.GRASS);
+  }
+
   const r = Math.random();
   if (r < 0.4) return generateGrassRow();
   if (r < 0.7) return generateWaterRow(rowIndex);
@@ -147,7 +151,7 @@ function createMovingLogs(rowIndex) {
   const lane = logLanes[rowIndex];
   if (!lane) return;
 
-  const logCount = 6; // more logs
+  const logCount = 6;
   for (let i = 0; i < logCount; i++) {
     const length = TILE * (1.2 + Math.random() * 1.5);
     const spacing = 120 + Math.random() * 120;
@@ -167,21 +171,27 @@ function createMovingLogs(rowIndex) {
   }
 }
 
-function addMovingObstacle(rowIndex) {
-  const type = Math.random() < 0.5 ? OBST.BOAR : OBST.DEER;
+function addAnimalLane(rowIndex) {
+  const laneSpeed = 2 + Math.random() * 1.5;
   const direction = Math.random() < 0.5 ? 1 : -1;
-  const speed = type === OBST.BOAR ? 2.5 : 1.8;
 
-  obstacles.push({
-    type,
-    row: rowIndex,
-    x: direction === 1 ? -TILE : canvas.width + TILE,
-    y: rowIndex * TILE,
-    width: TILE * 1.2,
-    height: TILE * 0.8,
-    speed,
-    direction
-  });
+  const animalCount = 4;
+  for (let i = 0; i < animalCount; i++) {
+    const type = Math.random() < 0.5 ? OBST.BOAR : OBST.DEER;
+
+    obstacles.push({
+      type,
+      row: rowIndex,
+      x: direction === 1
+        ? -TILE - i * 200
+        : canvas.width + TILE + i * 200,
+      y: rowIndex * TILE,
+      width: TILE * 1.2,
+      height: TILE * 0.8,
+      speed: laneSpeed,
+      direction
+    });
+  }
 }
 
 function generateWorld() {
@@ -197,8 +207,8 @@ function generateWorld() {
       createMovingLogs(r);
     } else if (terrainRow.includes(TERRAIN.WATER)) {
       // static logs only
-    } else if (Math.random() < 0.3 && r < ROWS - 3) {
-      addMovingObstacle(r);
+    } else if (r < ROWS - 2 && Math.random() < 0.5) {
+      addAnimalLane(r);
     }
   }
 }
@@ -282,7 +292,6 @@ function updateObstacles(dt) {
       }
     }
 
-    // wrap logs
     if (o.type === OBST.MOVING_LOG) {
       if (o.direction === 1 && o.x > canvas.width + 100) {
         o.x = -200;
@@ -291,9 +300,16 @@ function updateObstacles(dt) {
         o.x = canvas.width + 100;
       }
     }
-  }
 
-  obstacles = obstacles.filter(o => o.x > -400 && o.x < canvas.width + 400);
+    if (o.type === OBST.BOAR || o.type === OBST.DEER) {
+      if (o.direction === 1 && o.x > canvas.width + 100) {
+        o.x = -200;
+      }
+      if (o.direction === -1 && o.x < -200) {
+        o.x = canvas.width + 100;
+      }
+    }
+  }
 }
 
 function checkCollisions() {
