@@ -368,18 +368,15 @@ function updateObstacles(dt) {
   for (let o of obstacles) {
     o.x += o.speed * o.direction;
 
-    // Leonard rides moving logs
+    // Leonard rides moving logs using pixel position (no grid snapping)
     if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
-      const lx = leonard.x + TILE * 0.5;
+      const centerX = leonard.x + TILE * 0.5;
 
-      if (lx > o.x && lx < o.x + o.width) {
+      if (centerX > o.x && centerX < o.x + o.width) {
         leonard.x += o.speed * o.direction;
 
         if (leonard.x > canvas.width) leonard.x = -TILE;
         if (leonard.x < -TILE) leonard.x = canvas.width;
-
-        leonard.col = Math.floor(leonard.x / TILE);
-        leonard.targetX = leonard.x;
       }
     }
 
@@ -398,21 +395,23 @@ function updateObstacles(dt) {
 }
 
 function checkCollisions() {
-  const terrain = rows[leonard.row][leonard.col];
+  // Pixel-based terrain check
+  const colFromPixel = Math.floor((leonard.x + TILE/2) / TILE);
+  const terrain = rows[leonard.row][colFromPixel];
 
   if (terrain === TERRAIN.WATER) {
     let onLog = false;
 
     for (let o of obstacles) {
       if (o.type === OBST.MOVING_LOG && o.row === leonard.row) {
-        if (leonard.x + TILE * 0.5 > o.x &&
-            leonard.x + TILE * 0.5 < o.x + o.width) {
+        const centerX = leonard.x + TILE * 0.5;
+        if (centerX > o.x && centerX < o.x + o.width) {
           onLog = true;
         }
       }
     }
 
-    if (rows[leonard.row][leonard.col] === TERRAIN.LOG) {
+    if (rows[leonard.row][colFromPixel] === TERRAIN.LOG) {
       onLog = true;
     }
 
@@ -505,8 +504,7 @@ function drawLeonard() {
 
   ctx.fillStyle = "#000";
   ctx.fillRect(leonard.x + 16, leonard.y + 18, 4, 4);
-  ctx.fillRect(leonard.x + TILE - 20, leonard.y + 18, 4, 4
-    );
+  ctx.fillRect(leonard.x + TILE - 20, leon);
 }
 
 let lastTime = 0;
@@ -534,4 +532,3 @@ requestAnimationFrame(loop);
 </script>
 </body>
 </html>
-             
