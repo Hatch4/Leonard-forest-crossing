@@ -55,22 +55,6 @@
     touch-action: none;
   }
 
-  #resetBtn {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 12px 20px;
-    font-size: 18px;
-    background: #ff9800;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    display: none;
-    cursor: pointer;
-    z-index: 20;
-  }
-
   #messagePopup {
     position: absolute;
     top: 40%;
@@ -83,6 +67,22 @@
     text-align: center;
     display: none;
     max-width: 80%;
+    z-index: 20;
+  }
+
+  #resetBtn {
+    position: absolute;
+    top: calc(40% + 120px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 20px;
+    font-size: 18px;
+    background: #ff9800;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    display: none;
+    cursor: pointer;
     z-index: 20;
   }
 </style>
@@ -177,10 +177,19 @@ function generateWaterRow(rowIndex) {
 
   row[safeCol] = TERRAIN.LOG;
 
+  // Random logs
   for (let i = 0; i < COLS; i++) {
     if (i !== safeCol && Math.random() < 0.4) {
       row[i] = TERRAIN.LOG;
     }
+  }
+
+  // 50% chance this water row becomes a moving log lane
+  if (Math.random() < 0.5) {
+    logLanes[rowIndex] = {
+      direction: Math.random() < 0.5 ? 1 : -1,
+      speed: 1.2 + Math.random() * 1.2
+    };
   }
 
   return row;
@@ -195,6 +204,30 @@ function generateRow(rowIndex) {
   if (r < 0.4) return generateGrassRow();
   if (r < 0.7) return generateWaterRow(rowIndex);
   return new Array(COLS).fill(TERRAIN.GRASS);
+}
+
+function createMovingLogs(rowIndex) {
+  const lane = logLanes[rowIndex];
+  if (!lane) return;
+
+  const logCount = 5;
+  for (let i = 0; i < logCount; i++) {
+    const length = TILE * (1.2 + Math.random() * 1.5);
+    const spacing = 140 + Math.random() * 160;
+
+    obstacles.push({
+      type: OBST.MOVING_LOG,
+      row: rowIndex,
+      x: lane.direction === 1
+        ? -TILE - i * spacing
+        : canvas.width + TILE + i * spacing,
+      y: rowIndex * TILE,
+      width: length,
+      height: TILE * 0.6,
+      speed: lane.speed,
+      direction: lane.direction
+    });
+  }
 }
 
 function addAnimalLane(rowIndex) {
@@ -231,7 +264,9 @@ function generateWorld() {
     const terrainRow = generateRow(r);
     rows.push(terrainRow);
 
-    if (terrainRow.includes(TERRAIN.WATER)) {
+    if (logLanes[r]) {
+      createMovingLogs(r);
+    } else if (terrainRow.includes(TERRAIN.WATER)) {
       // static logs only
     } else if (r < ROWS - 2 && Math.random() < 0.5) {
       addAnimalLane(r);
@@ -450,12 +485,15 @@ function drawTerrain() {
 
 function drawObstacles() {
   for (let o of obstacles) {
+
+    // Moving logs
     if (o.type === OBST.MOVING_LOG) {
       ctx.fillStyle = "#8d6e63";
       ctx.fillRect(o.x, o.y + TILE * 0.2, o.width, o.height);
       continue;
     }
 
+    // Animals (boar / deer)
     ctx.fillStyle = o.type === OBST.BOAR ? "#6d4c41" : "#a1887f";
     ctx.fillRect(o.x, o.y + TILE * 0.1, o.width, o.height);
 
