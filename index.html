@@ -285,17 +285,25 @@ function updateObstacles(dt) {
   for (let o of obstacles) {
     o.x += o.speed * o.direction;
 
+    // Leonard rides logs AND loops with them
     if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
       const lane = logLanes[o.row];
       const lx = leonard.x + TILE * 0.5;
 
       if (lx > o.x && lx < o.x + o.width) {
+
         leonard.x += lane.speed * lane.direction;
+
+        // LOOPING LOG BEHAVIOR
+        if (leonard.x > canvas.width) leonard.x = -TILE;
+        if (leonard.x < -TILE) leonard.x = canvas.width;
+
         leonard.targetX = leonard.x;
         leonard.col = Math.round(leonard.x / TILE);
       }
     }
 
+    // Wrap logs
     if (o.type === OBST.MOVING_LOG) {
       if (o.direction === 1 && o.x > canvas.width + 100) {
         o.x = -200;
@@ -305,6 +313,7 @@ function updateObstacles(dt) {
       }
     }
 
+    // Wrap animals
     if (o.type === OBST.BOAR || o.type === OBST.DEER) {
       if (o.direction === 1 && o.x > canvas.width + 100) {
         o.x = -200;
