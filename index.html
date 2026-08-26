@@ -121,7 +121,6 @@ function generateWaterRow(rowIndex) {
   const mode = Math.random() < 0.5 ? "static" : "moving";
 
   if (mode === "static") {
-    // Floating logs only
     for (let i = 0; i < COLS; i++) {
       if (Math.random() < 0.5) row[i] = TERRAIN.LOG;
     }
@@ -129,7 +128,6 @@ function generateWaterRow(rowIndex) {
       row[Math.floor(Math.random() * COLS)] = TERRAIN.LOG;
     }
   } else {
-    // Moving logs only
     const direction = Math.random() < 0.5 ? 1 : -1;
     const speed = 1.2;
     logLanes[rowIndex] = { direction, speed };
@@ -149,15 +147,19 @@ function createMovingLogs(rowIndex) {
   const lane = logLanes[rowIndex];
   if (!lane) return;
 
-  for (let i = 0; i < 3; i++) {
+  const logCount = 6; // more logs
+  for (let i = 0; i < logCount; i++) {
+    const length = TILE * (1.2 + Math.random() * 1.5);
+    const spacing = 120 + Math.random() * 120;
+
     obstacles.push({
       type: OBST.MOVING_LOG,
       row: rowIndex,
       x: lane.direction === 1
-        ? -TILE - i * 200
-        : canvas.width + TILE + i * 200,
+        ? -TILE - i * spacing
+        : canvas.width + TILE + i * spacing,
       y: rowIndex * TILE,
-      width: TILE * 1.5,
+      width: length,
       height: TILE * 0.6,
       speed: lane.speed,
       direction: lane.direction
@@ -194,7 +196,7 @@ function generateWorld() {
     if (logLanes[r]) {
       createMovingLogs(r);
     } else if (terrainRow.includes(TERRAIN.WATER)) {
-      // static logs only, no moving logs
+      // static logs only
     } else if (Math.random() < 0.3 && r < ROWS - 3) {
       addMovingObstacle(r);
     }
@@ -279,9 +281,19 @@ function updateObstacles(dt) {
         leonard.targetX = leonard.x;
       }
     }
+
+    // wrap logs
+    if (o.type === OBST.MOVING_LOG) {
+      if (o.direction === 1 && o.x > canvas.width + 100) {
+        o.x = -200;
+      }
+      if (o.direction === -1 && o.x < -200) {
+        o.x = canvas.width + 100;
+      }
+    }
   }
 
-  obstacles = obstacles.filter(o => o.x > -200 && o.x < canvas.width + 200);
+  obstacles = obstacles.filter(o => o.x > -400 && o.x < canvas.width + 400);
 }
 
 function checkCollisions() {
@@ -291,7 +303,6 @@ function checkCollisions() {
     let onLog = false;
 
     if (logLanes[leonard.row]) {
-      // moving log lane
       for (let o of obstacles) {
         if (o.type === OBST.MOVING_LOG && o.row === leonard.row) {
           if (leonard.x + TILE * 0.5 > o.x &&
@@ -301,7 +312,6 @@ function checkCollisions() {
         }
       }
     } else {
-      // static logs
       if (rows[leonard.row][leonard.col] === TERRAIN.LOG) {
         onLog = true;
       }
