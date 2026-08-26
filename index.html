@@ -40,6 +40,7 @@
   #btn-left { left: 20px; }
   #btn-right { left: 120px; }
   #btn-up { right: 20px; }
+  #btn-down { right: 20px; bottom: 80px; }
 </style>
 </head>
 <body>
@@ -52,6 +53,7 @@
 <div id="btn-left" class="btn">◀</div>
 <div id="btn-right" class="btn">▶</div>
 <div id="btn-up" class="btn">▲</div>
+<div id="btn-down" class="btn">▼</div>
 
 <canvas id="game" width="480" height="640"></canvas>
 
@@ -75,12 +77,12 @@ const TERRAIN = {
 const OBST = {
   BOAR: "boar",
   DEER: "deer",
-  LOG: "log"
+  MOVING_LOG: "moving_log"
 };
 
 let rows = [];
 let obstacles = [];
-let logLanes = {}; // unified log lanes per row
+let logLanes = {}; // unified moving log lanes
 let score = 0;
 let gameOver = false;
 
@@ -116,20 +118,22 @@ function generateGrassRow() {
 function generateWaterRow(rowIndex) {
   const row = new Array(COLS).fill(TERRAIN.WATER);
 
-  // Guarantee logs exist
-  for (let i = 0; i < COLS; i++) {
-    if (Math.random() < 0.5) row[i] = TERRAIN.LOG;
+  const mode = Math.random() < 0.5 ? "static" : "moving";
+
+  if (mode === "static") {
+    // Floating logs only
+    for (let i = 0; i < COLS; i++) {
+      if (Math.random() < 0.5) row[i] = TERRAIN.LOG;
+    }
+    if (!row.includes(TERRAIN.LOG)) {
+      row[Math.floor(Math.random() * COLS)] = TERRAIN.LOG;
+    }
+  } else {
+    // Moving logs only
+    const direction = Math.random() < 0.5 ? 1 : -1;
+    const speed = 1.2;
+    logLanes[rowIndex] = { direction, speed };
   }
-
-  if (!row.includes(TERRAIN.LOG)) {
-    row[Math.floor(Math.random() * COLS)] = TERRAIN.LOG;
-  }
-
-  // Create unified lane
-  const direction = Math.random() < 0.5 ? 1 : -1;
-  const speed = 1.2;
-
-  logLanes[rowIndex] = { direction, speed };
 
   return row;
 }
@@ -141,13 +145,13 @@ function generateRow(rowIndex) {
   return new Array(COLS).fill(TERRAIN.GRASS);
 }
 
-function createLogObstaclesForRow(rowIndex) {
+function createMovingLogs(rowIndex) {
   const lane = logLanes[rowIndex];
   if (!lane) return;
 
   for (let i = 0; i < 3; i++) {
     obstacles.push({
-      type: OBST.LOG,
+      type: OBST.MOVING_LOG,
       row: rowIndex,
       x: lane.direction === 1
         ? -TILE - i * 200
@@ -187,8 +191,10 @@ function generateWorld() {
     const terrainRow = generateRow(r);
     rows.push(terrainRow);
 
-    if (terrainRow.includes(TERRAIN.WATER)) {
-      createLogObstaclesForRow(r);
+    if (logLanes[r]) {
+      createMovingLogs(r);
+    } else if (terrainRow.includes(TERRAIN.WATER)) {
+      // static logs only, no moving logs
     } else if (Math.random() < 0.3 && r < ROWS - 3) {
       addMovingObstacle(r);
     }
@@ -236,11 +242,13 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") moveLeonard(-1, 0);
   if (e.key === "ArrowRight") moveLeonard(1, 0);
   if (e.key === "ArrowUp") moveLeonard(0, -1);
+  if (e.key === "ArrowDown") moveLeonard(0, 1);
 });
 
 document.getElementById("btn-left").onclick = () => moveLeonard(-1, 0);
 document.getElementById("btn-right").onclick = () => moveLeonard(1, 0);
 document.getElementById("btn-up").onclick = () => moveLeonard(0, -1);
+document.getElementById("btn-down").onclick = () => moveLeonard(0, 1);
 
 function updateLeonard(dt) {
   if (!leonard.moving) return;
@@ -262,7 +270,7 @@ function updateObstacles(dt) {
   for (let o of obstacles) {
     o.x += o.speed * o.direction;
 
-    if (o.type === OBST.LOG && leonard.row === o.row) {
+    if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
       const lane = logLanes[o.row];
       const lx = leonard.x + TILE * 0.5;
 
@@ -282,12 +290,20 @@ function checkCollisions() {
   if (terrain === TERRAIN.WATER) {
     let onLog = false;
 
-    for (let o of obstacles) {
-      if (o.type === OBST.LOG && o.row === leonard.row) {
-        if (leonard.x + TILE * 0.5 > o.x &&
-            leonard.x + TILE * 0.5 < o.x + o.width) {
-          onLog = true;
+    if (logLanes[leonard.row]) {
+      // moving log lane
+      for (let o of obstacles) {
+        if (o.type === OBST.MOVING_LOG && o.row === leonard.row) {
+          if (leonard.x + TILE * 0.5 > o.x &&
+              leonard.x + TILE * 0.5 < o.x + o.width) {
+            onLog = true;
+          }
         }
+      }
+    } else {
+      // static logs
+      if (rows[leonard.row][leonard.col] === TERRAIN.LOG) {
+        onLog = true;
       }
     }
 
@@ -349,7 +365,7 @@ function drawTerrain() {
 
 function drawObstacles() {
   for (let o of obstacles) {
-    if (o.type === OBST.LOG) {
+    if (o.type === OBST.MOVING_LOG) {
       ctx.fillStyle = "#8d6e63";
       ctx.fillRect(o.x, o.y + TILE * 0.2, o.width, o.height);
       continue;
