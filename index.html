@@ -80,6 +80,7 @@ const OBST = {
 
 let rows = [];
 let obstacles = [];
+let logLanes = {}; // unified log lanes per row
 let score = 0;
 let gameOver = false;
 
@@ -91,8 +92,7 @@ let leonard = {
   targetX: 0,
   targetY: 0,
   moving: false,
-  moveProgress: 0,
-  ridingLog: null
+  moveProgress: 0
 };
 
 function initLeonard() {
@@ -103,7 +103,6 @@ function initLeonard() {
   leonard.targetX = leonard.x;
   leonard.targetY = leonard.y;
   leonard.moving = false;
-  leonard.ridingLog = null;
 }
 
 function generateGrassRow() {
@@ -114,7 +113,7 @@ function generateGrassRow() {
   return row;
 }
 
-function generateWaterRow() {
+function generateWaterRow(rowIndex) {
   const row = new Array(COLS).fill(TERRAIN.WATER);
 
   // Guarantee logs exist
@@ -122,19 +121,44 @@ function generateWaterRow() {
     if (Math.random() < 0.5) row[i] = TERRAIN.LOG;
   }
 
-  // Guarantee at least one log
   if (!row.includes(TERRAIN.LOG)) {
     row[Math.floor(Math.random() * COLS)] = TERRAIN.LOG;
   }
 
+  // Create unified lane
+  const direction = Math.random() < 0.5 ? 1 : -1;
+  const speed = 1.2;
+
+  logLanes[rowIndex] = { direction, speed };
+
   return row;
 }
 
-function generateRow() {
+function generateRow(rowIndex) {
   const r = Math.random();
   if (r < 0.4) return generateGrassRow();
-  if (r < 0.7) return generateWaterRow();
+  if (r < 0.7) return generateWaterRow(rowIndex);
   return new Array(COLS).fill(TERRAIN.GRASS);
+}
+
+function createLogObstaclesForRow(rowIndex) {
+  const lane = logLanes[rowIndex];
+  if (!lane) return;
+
+  for (let i = 0; i < 3; i++) {
+    obstacles.push({
+      type: OBST.LOG,
+      row: rowIndex,
+      x: lane.direction === 1
+        ? -TILE - i * 200
+        : canvas.width + TILE + i * 200,
+      y: rowIndex * TILE,
+      width: TILE * 1.5,
+      height: TILE * 0.6,
+      speed: lane.speed,
+      direction: lane.direction
+    });
+  }
 }
 
 function addMovingObstacle(rowIndex) {
@@ -154,32 +178,17 @@ function addMovingObstacle(rowIndex) {
   });
 }
 
-function addMovingLog(rowIndex) {
-  const direction = Math.random() < 0.5 ? 1 : -1;
-  const speed = 1.2;
-
-  obstacles.push({
-    type: OBST.LOG,
-    row: rowIndex,
-    x: direction === 1 ? -TILE : canvas.width + TILE,
-    y: rowIndex * TILE,
-    width: TILE * 1.5,
-    height: TILE * 0.6,
-    speed,
-    direction
-  });
-}
-
 function generateWorld() {
   rows = [];
   obstacles = [];
+  logLanes = {};
 
   for (let r = 0; r < ROWS; r++) {
-    const terrainRow = generateRow();
+    const terrainRow = generateRow(r);
     rows.push(terrainRow);
 
     if (terrainRow.includes(TERRAIN.WATER)) {
-      addMovingLog(r);
+      createLogObstaclesForRow(r);
     } else if (Math.random() < 0.3 && r < ROWS - 3) {
       addMovingObstacle(r);
     }
@@ -203,7 +212,6 @@ function moveLeonard(dx, dy) {
   if (newCol < 0 || newCol >= COLS || newRow < 0 || newRow >= ROWS) return;
 
   const terrain = rows[newRow][newCol];
-
   if (terrain === TERRAIN.TREE) return;
 
   leonard.col = newCol;
@@ -255,28 +263,17 @@ function updateObstacles(dt) {
     o.x += o.speed * o.direction;
 
     if (o.type === OBST.LOG && leonard.row === o.row) {
-      const lx = leonard.x + TILE * 0.2;
-      const ly = leonard.y + TILE * 0.2;
-      const lw = TILE * 0.6;
-      const lh = TILE * 0.6;
+      const lane = logLanes[o.row];
+      const lx = leonard.x + TILE * 0.5;
 
-      if (lx < o.x + o.width &&
-          lx + lw > o.x &&
-          ly < o.y + o.height &&
-          ly + lh > o.y) {
-        leonard.x += o.speed * o.direction;
+      if (lx > o.x && lx < o.x + o.width) {
+        leonard.x += lane.speed * lane.direction;
         leonard.targetX = leonard.x;
       }
     }
   }
 
   obstacles = obstacles.filter(o => o.x > -200 && o.x < canvas.width + 200);
-
-  if (Math.random() < 0.02) {
-    const r = Math.floor(Math.random() * ROWS);
-    if (rows[r].includes(TERRAIN.WATER)) addMovingLog(r);
-    else addMovingObstacle(r);
-  }
 }
 
 function checkCollisions() {
@@ -284,6 +281,7 @@ function checkCollisions() {
 
   if (terrain === TERRAIN.WATER) {
     let onLog = false;
+
     for (let o of obstacles) {
       if (o.type === OBST.LOG && o.row === leonard.row) {
         if (leonard.x + TILE * 0.5 > o.x &&
@@ -292,6 +290,7 @@ function checkCollisions() {
         }
       }
     }
+
     if (!onLog) endGame("Leonard fell into the river!");
   }
 
