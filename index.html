@@ -44,9 +44,24 @@
     width: 100vw;
     max-width: 600px;
     height: auto;
-    max-height: calc(100vh - 50px);
+    max-height: calc(100vh - 90px);
     image-rendering: pixelated;
-    touch-action: none; /* prevent scroll on swipe */
+    touch-action: none;
+  }
+
+  #resetBtn {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 20px;
+    font-size: 18px;
+    background: #ff9800;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    display: none;
+    cursor: pointer;
   }
 </style>
 </head>
@@ -58,6 +73,7 @@
     <div id="status">Leonard the Lion – Forest Crossing</div>
   </div>
   <canvas id="game" width="480" height="640"></canvas>
+  <button id="resetBtn">Restart Game</button>
 </div>
 
 <script>
@@ -65,6 +81,7 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
 const statusEl = document.getElementById("status");
+const resetBtn = document.getElementById("resetBtn");
 
 const TILE = 40;
 const COLS = canvas.width / TILE;
@@ -225,7 +242,10 @@ function resetGame() {
   generateWorld();
   initLeonard();
   statusEl.textContent = "Leonard the Lion – Forest Crossing";
+  resetBtn.style.display = "none";
 }
+
+resetBtn.onclick = () => resetGame();
 
 function moveLeonard(dx, dy) {
   if (gameOver || leonard.moving) return;
@@ -314,7 +334,6 @@ function updateObstacles(dt) {
   for (let o of obstacles) {
     o.x += o.speed * o.direction;
 
-    // Leonard rides logs AND loops with them
     if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
       const lane = logLanes[o.row];
       const lx = leonard.x + TILE * 0.5;
@@ -330,7 +349,6 @@ function updateObstacles(dt) {
       }
     }
 
-    // Wrap logs
     if (o.type === OBST.MOVING_LOG) {
       if (o.direction === 1 && o.x > canvas.width + 100) {
         o.x = -200;
@@ -340,7 +358,6 @@ function updateObstacles(dt) {
       }
     }
 
-    // Wrap animals
     if (o.type === OBST.BOAR || o.type === OBST.DEER) {
       if (o.direction === 1 && o.x > canvas.width + 100) {
         o.x = -200;
@@ -396,7 +413,8 @@ function checkCollisions() {
 
 function endGame(msg) {
   gameOver = true;
-  statusEl.textContent = msg + " Press Enter to restart.";
+  statusEl.textContent = msg;
+  resetBtn.style.display = "block";
 }
 
 function drawTerrain() {
