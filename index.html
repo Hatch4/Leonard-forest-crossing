@@ -373,8 +373,17 @@ function updateObstacles(dt) {
       const centerX = leonard.x + TILE * 0.5;
 
       if (centerX > o.x && centerX < o.x + o.width) {
+
+        // ⭐ FIX: Stop Leonard's movement animation when riding a log
+        leonard.moving = false;
+        leonard.moveProgress = 0;
+        leonard.targetX = leonard.x;
+        leonard.targetY = leonard.y;
+
+        // Move Leonard with the log
         leonard.x += o.speed * o.direction;
 
+        // Wrap around screen
         if (leonard.x > canvas.width) leonard.x = -TILE;
         if (leonard.x < -TILE) leonard.x = canvas.width;
       }
@@ -498,11 +507,12 @@ function drawLeonard() {
   ctx.fillStyle = "#f57c00";
   ctx.fillRect(leonard.x + 4, leonard.y + 4, TILE - 8, TILE - 8);
 
-ctx.fillStyle = "#ffe0b2";
-ctx.fillRect(leonard.x + 12, leonard.y + 12, TILE - 24, TILE - 24);
-ctx.fillStyle = "#000";
-ctx.fillRect(leonard.x + 16, leonard.y + 18, 4, 4);
-ctx.fillRect(leonard.x + TILE - 20, leonard.y + 18, 4, 4);
+  ctx.fillStyle = "#ffe0b2";
+  ctx.fillRect(leonard.x + 12, leonard.y + 12, TILE - 24, TILE - 24);
+
+  ctx.fillStyle = "#000";
+  ctx.fillRect(leonard.x + 16, leonard.y + 18, 4, 4);
+  ctx.fillRect(leonard.x + TILE - 20, leonard.y + 18, 4, 4);
 }
 
 let lastTime = 0;
@@ -530,4 +540,3 @@ requestAnimationFrame(loop);
 </script>
 </body>
 </html>
-
