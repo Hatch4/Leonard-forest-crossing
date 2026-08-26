@@ -72,7 +72,7 @@
 
   #resetBtn {
     position: absolute;
-    top: calc(40% + 120px);
+    top: calc(40% + 110px);
     left: 50%;
     transform: translateX(-50%);
     padding: 12px 20px;
@@ -162,30 +162,23 @@ function generateGrassRow() {
 function generateWaterRow(rowIndex) {
   const row = new Array(COLS).fill(TERRAIN.WATER);
 
-  // Guarantee safe path
-  let safeCol;
+  // Every other water row is moving logs
+  const isMovingLane = rowIndex % 2 === 1;
 
-  if (rowIndex > 0 && rows[rowIndex - 1].includes(TERRAIN.WATER)) {
-    const prevSafe = rows[rowIndex - 1].findIndex(t => t === TERRAIN.LOG);
-    safeCol = prevSafe + (Math.random() < 0.5 ? -1 : 1);
+  // Static stepping logs
+  if (!isMovingLane) {
+    for (let i = 0; i < COLS; i++) {
+      if (Math.random() < 0.5) row[i] = TERRAIN.LOG;
+    }
 
-    if (safeCol < 0) safeCol = 0;
-    if (safeCol >= COLS) safeCol = COLS - 1;
-  } else {
-    safeCol = Math.floor(Math.random() * COLS);
-  }
-
-  row[safeCol] = TERRAIN.LOG;
-
-  // Random logs
-  for (let i = 0; i < COLS; i++) {
-    if (i !== safeCol && Math.random() < 0.4) {
-      row[i] = TERRAIN.LOG;
+    // Guarantee at least one stepping log
+    if (!row.includes(TERRAIN.LOG)) {
+      row[Math.floor(Math.random() * COLS)] = TERRAIN.LOG;
     }
   }
 
-  // 50% chance this water row becomes a moving log lane
-  if (Math.random() < 0.5) {
+  // Moving log lane
+  if (isMovingLane) {
     logLanes[rowIndex] = {
       direction: Math.random() < 0.5 ? 1 : -1,
       speed: 1.2 + Math.random() * 1.2
@@ -375,7 +368,7 @@ function updateObstacles(dt) {
   for (let o of obstacles) {
     o.x += o.speed * o.direction;
 
-    // Leonard rides moving logs and stays centered
+    // Leonard rides moving logs
     if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
       const lx = leonard.x + TILE * 0.5;
 
@@ -486,14 +479,12 @@ function drawTerrain() {
 function drawObstacles() {
   for (let o of obstacles) {
 
-    // Moving logs
     if (o.type === OBST.MOVING_LOG) {
       ctx.fillStyle = "#8d6e63";
       ctx.fillRect(o.x, o.y + TILE * 0.2, o.width, o.height);
       continue;
     }
 
-    // Animals (boar / deer)
     ctx.fillStyle = o.type === OBST.BOAR ? "#6d4c41" : "#a1887f";
     ctx.fillRect(o.x, o.y + TILE * 0.1, o.width, o.height);
 
@@ -514,7 +505,8 @@ function drawLeonard() {
 
   ctx.fillStyle = "#000";
   ctx.fillRect(leonard.x + 16, leonard.y + 18, 4, 4);
-  ctx.fillRect(leonard.x + TILE - 20, leonard.y + 18, 4, 4);
+  ctx.fillRect(leonard.x + TILE - 20, leonard.y + 18, 4, 4
+    );
 }
 
 let lastTime = 0;
@@ -542,3 +534,4 @@ requestAnimationFrame(loop);
 </script>
 </body>
 </html>
+             
