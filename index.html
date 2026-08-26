@@ -82,7 +82,7 @@ const OBST = {
 
 let rows = [];
 let obstacles = [];
-let logLanes = {}; // unified moving log lanes
+let logLanes = {};
 let score = 0;
 let gameOver = false;
 
@@ -117,7 +117,6 @@ function generateGrassRow() {
 
 function generateWaterRow(rowIndex) {
   const row = new Array(COLS).fill(TERRAIN.WATER);
-
   const mode = Math.random() < 0.5 ? "static" : "moving";
 
   if (mode === "static") {
@@ -137,7 +136,6 @@ function generateWaterRow(rowIndex) {
 }
 
 function generateRow(rowIndex) {
-  // Bottom row: guaranteed safe grass, no trees, no water
   if (rowIndex === ROWS - 1) {
     return new Array(COLS).fill(TERRAIN.GRASS);
   }
@@ -173,25 +171,29 @@ function createMovingLogs(rowIndex) {
 }
 
 function addAnimalLane(rowIndex) {
-  const laneSpeed = 2 + Math.random() * 1.5;
+  const laneSpeed = 1.8 + Math.random() * 2.2;
   const direction = Math.random() < 0.5 ? 1 : -1;
+  const animalCount = 1 + Math.floor(Math.random() * 5);
+  let positionOffset = Math.random() * 300;
 
-  const animalCount = 4;
   for (let i = 0; i < animalCount; i++) {
+    const spacing = 120 + Math.random() * 250;
     const type = Math.random() < 0.5 ? OBST.BOAR : OBST.DEER;
 
     obstacles.push({
       type,
       row: rowIndex,
       x: direction === 1
-        ? -TILE - i * 200
-        : canvas.width + TILE + i * 200,
+        ? -positionOffset
+        : canvas.width + positionOffset,
       y: rowIndex * TILE,
-      width: TILE * 1.2,
+      width: TILE * (1.1 + Math.random() * 0.4),
       height: TILE * 0.8,
       speed: laneSpeed,
       direction
     });
+
+    positionOffset += spacing;
   }
 }
 
@@ -283,7 +285,6 @@ function updateObstacles(dt) {
   for (let o of obstacles) {
     o.x += o.speed * o.direction;
 
-    // Correct log riding: update real position, target, and col
     if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
       const lane = logLanes[o.row];
       const lx = leonard.x + TILE * 0.5;
@@ -295,7 +296,6 @@ function updateObstacles(dt) {
       }
     }
 
-    // Wrap moving logs
     if (o.type === OBST.MOVING_LOG) {
       if (o.direction === 1 && o.x > canvas.width + 100) {
         o.x = -200;
@@ -305,7 +305,6 @@ function updateObstacles(dt) {
       }
     }
 
-    // Wrap animals
     if (o.type === OBST.BOAR || o.type === OBST.DEER) {
       if (o.direction === 1 && o.x > canvas.width + 100) {
         o.x = -200;
