@@ -250,4 +250,203 @@ function moveLeonard(dx, dy) {
   }
 }
 
-window.addEventListener("keydown", (e) =>
+window.addEventListener("keydown", (e) => {
+  if (gameOver && e.key === "Enter") return resetGame();
+  if (e.key === "ArrowLeft") moveLeonard(-1, 0);
+  if (e.key === "ArrowRight") moveLeonard(1, 0);
+  if (e.key === "ArrowUp") moveLeonard(0, -1);
+  if (e.key === "ArrowDown") moveLeonard(0, 1);
+});
+
+document.getElementById("btn-left").onclick = () => moveLeonard(-1, 0);
+document.getElementById("btn-right").onclick = () => moveLeonard(1, 0);
+document.getElementById("btn-up").onclick = () => moveLeonard(0, -1);
+document.getElementById("btn-down").onclick = () => moveLeonard(0, 1);
+
+function updateLeonard(dt) {
+  if (!leonard.moving) return;
+
+  leonard.moveProgress += dt * 6;
+
+  if (leonard.moveProgress >= 1) {
+    leonard.x = leonard.targetX;
+    leonard.y = leonard.targetY;
+    leonard.moving = false;
+    leonard.moveProgress = 0;
+  } else {
+    leonard.x += (leonard.targetX - leonard.x) * dt * 6;
+    leonard.y += (leonard.targetY - leonard.y) * dt * 6;
+  }
+}
+
+function updateObstacles(dt) {
+  for (let o of obstacles) {
+    o.x += o.speed * o.direction;
+
+    // Correct log riding: update real position, target, and col
+    if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
+      const lane = logLanes[o.row];
+      const lx = leonard.x + TILE * 0.5;
+
+      if (lx > o.x && lx < o.x + o.width) {
+        leonard.x += lane.speed * lane.direction;
+        leonard.targetX = leonard.x;
+        leonard.col = Math.round(leonard.x / TILE);
+      }
+    }
+
+    // Wrap moving logs
+    if (o.type === OBST.MOVING_LOG) {
+      if (o.direction === 1 && o.x > canvas.width + 100) {
+        o.x = -200;
+      }
+      if (o.direction === -1 && o.x < -200) {
+        o.x = canvas.width + 100;
+      }
+    }
+
+    // Wrap animals
+    if (o.type === OBST.BOAR || o.type === OBST.DEER) {
+      if (o.direction === 1 && o.x > canvas.width + 100) {
+        o.x = -200;
+      }
+      if (o.direction === -1 && o.x < -200) {
+        o.x = canvas.width + 100;
+      }
+    }
+  }
+}
+
+function checkCollisions() {
+  const terrain = rows[leonard.row][leonard.col];
+
+  if (terrain === TERRAIN.WATER) {
+    let onLog = false;
+
+    if (logLanes[leonard.row]) {
+      for (let o of obstacles) {
+        if (o.type === OBST.MOVING_LOG && o.row === leonard.row) {
+          if (leonard.x + TILE * 0.5 > o.x &&
+              leonard.x + TILE * 0.5 < o.x + o.width) {
+            onLog = true;
+          }
+        }
+      }
+    } else {
+      if (rows[leonard.row][leonard.col] === TERRAIN.LOG) {
+        onLog = true;
+      }
+    }
+
+    if (!onLog) endGame("Leonard fell into the river!");
+  }
+
+  for (let o of obstacles) {
+    if (o.row !== leonard.row) continue;
+
+    const lx = leonard.x + TILE * 0.1;
+    const ly = leonard.y + TILE * 0.1;
+    const lw = TILE * 0.8;
+    const lh = TILE * 0.8;
+
+    if (lx < o.x + o.width &&
+        lx + lw > o.x &&
+        ly < o.y + o.height &&
+        ly + lh > o.y) {
+      if (o.type === OBST.BOAR) endGame("A boar knocked Leonard over!");
+      else if (o.type === OBST.DEER) endGame("Leonard was trampled by a deer!");
+    }
+  }
+}
+
+function endGame(msg) {
+  gameOver = true;
+  statusEl.textContent = msg + " Press Enter to restart.";
+}
+
+function drawTerrain() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const t = rows[r][c];
+      const x = c * TILE;
+      const y = r * TILE;
+
+      if (t === TERRAIN.GRASS) {
+        ctx.fillStyle = "#4caf50";
+        ctx.fillRect(x, y, TILE, TILE);
+      } else if (t === TERRAIN.WATER) {
+        ctx.fillStyle = "#1e88e5";
+        ctx.fillRect(x, y, TILE, TILE);
+      } else if (t === TERRAIN.TREE) {
+        ctx.fillStyle = "#4caf50";
+        ctx.fillRect(x, y, TILE, TILE);
+        ctx.fillStyle = "#2e7d32";
+        ctx.fillRect(x + 8, y + 4, TILE - 16, TILE - 8);
+        ctx.fillStyle = "#5d4037";
+        ctx.fillRect(x + TILE/2 - 4, y + TILE - 12, 8, 12);
+      } else if (t === TERRAIN.LOG) {
+        ctx.fillStyle = "#1e88e5";
+        ctx.fillRect(x, y, TILE, TILE);
+        ctx.fillStyle = "#8d6e63";
+        ctx.fillRect(x + 4, y + 10, TILE - 8, TILE - 20);
+      }
+    }
+  }
+}
+
+function drawObstacles() {
+  for (let o of obstacles) {
+    if (o.type === OBST.MOVING_LOG) {
+      ctx.fillStyle = "#8d6e63";
+      ctx.fillRect(o.x, o.y + TILE * 0.2, o.width, o.height);
+      continue;
+    }
+
+    ctx.fillStyle = o.type === OBST.BOAR ? "#6d4c41" : "#a1887f";
+    ctx.fillRect(o.x, o.y + TILE * 0.1, o.width, o.height);
+
+    ctx.fillStyle = "#3e2723";
+    ctx.fillRect(o.x + o.width * 0.6, o.y, o.width * 0.3, o.height * 0.6);
+  }
+}
+
+function drawLeonard() {
+  ctx.fillStyle = "#ffb74d";
+  ctx.fillRect(leonard.x + 8, leonard.y + 8, TILE - 16, TILE - 16);
+
+  ctx.fillStyle = "#f57c00";
+  ctx.fillRect(leonard.x + 4, leonard.y + 4, TILE - 8, TILE - 8);
+
+  ctx.fillStyle = "#ffe0b2";
+  ctx.fillRect(leonard.x + 12, leonard.y + 12, TILE - 24, TILE - 24);
+
+  ctx.fillStyle = "#000";
+  ctx.fillRect(leonard.x + 16, leonard.y + 18, 4, 4);
+  ctx.fillRect(leonard.x + TILE - 20, leonard.y + 18, 4, 4);
+}
+
+let lastTime = 0;
+function loop(ts) {
+  const dt = (ts - lastTime) / 1000;
+  lastTime = ts;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!gameOver) {
+    updateLeonard(dt);
+    updateObstacles(dt);
+    checkCollisions();
+  }
+
+  drawTerrain();
+  drawObstacles();
+  drawLeonard();
+
+  requestAnimationFrame(loop);
+}
+
+resetGame();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
