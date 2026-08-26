@@ -31,11 +31,28 @@
 
   #ui {
     width: 100%;
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 12px;
+    padding: env(safe-area-inset-top) 12px 8px 12px;
     box-sizing: border-box;
     font-size: 16px;
+    position: relative;
+    z-index: 10;
+  }
+
+  #score {
+    position: absolute;
+    left: 12px;
+    top: calc(env(safe-area-inset-top) + 8px);
+  }
+
+  #status {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 40px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 18px;
+    text-align: center;
+    width: 100%;
+    padding: 0 12px;
   }
 
   canvas {
@@ -44,7 +61,7 @@
     width: 100vw;
     max-width: 600px;
     height: auto;
-    max-height: calc(100vh - 90px);
+    max-height: calc(100vh - 120px);
     image-rendering: pixelated;
     touch-action: none;
   }
@@ -334,21 +351,22 @@ function updateObstacles(dt) {
   for (let o of obstacles) {
     o.x += o.speed * o.direction;
 
+    // Leonard rides moving logs and stays on them
     if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
-      const lane = logLanes[o.row];
       const lx = leonard.x + TILE * 0.5;
 
       if (lx > o.x && lx < o.x + o.width) {
-        leonard.x += lane.speed * lane.direction;
+        leonard.x += o.speed * o.direction;
 
         if (leonard.x > canvas.width) leonard.x = -TILE;
         if (leonard.x < -TILE) leonard.x = canvas.width;
 
+        leonard.col = Math.floor(leonard.x / TILE);
         leonard.targetX = leonard.x;
-        leonard.col = Math.round(leonard.x / TILE);
       }
     }
 
+    // Wrap logs
     if (o.type === OBST.MOVING_LOG) {
       if (o.direction === 1 && o.x > canvas.width + 100) {
         o.x = -200;
@@ -358,6 +376,7 @@ function updateObstacles(dt) {
       }
     }
 
+    // Wrap animals
     if (o.type === OBST.BOAR || o.type === OBST.DEER) {
       if (o.direction === 1 && o.x > canvas.width + 100) {
         o.x = -200;
