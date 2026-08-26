@@ -44,17 +44,6 @@
     top: calc(env(safe-area-inset-top) + 8px);
   }
 
-  #status {
-    position: absolute;
-    top: calc(env(safe-area-inset-top) + 40px);
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 18px;
-    text-align: center;
-    width: 100%;
-    padding: 0 12px;
-  }
-
   canvas {
     background: #87ceeb;
     border: 2px solid #fff;
@@ -79,6 +68,22 @@
     border-radius: 8px;
     display: none;
     cursor: pointer;
+    z-index: 20;
+  }
+
+  #messagePopup {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.85);
+    padding: 20px 30px;
+    border-radius: 12px;
+    font-size: 20px;
+    text-align: center;
+    display: none;
+    max-width: 80%;
+    z-index: 20;
   }
 </style>
 </head>
@@ -87,9 +92,11 @@
 <div id="game-container">
   <div id="ui">
     <div id="score">Score: 0</div>
-    <div id="status">Leonard the Lion – Forest Crossing</div>
   </div>
+
   <canvas id="game" width="480" height="640"></canvas>
+
+  <div id="messagePopup"></div>
   <button id="resetBtn">Restart Game</button>
 </div>
 
@@ -97,8 +104,8 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
-const statusEl = document.getElementById("status");
 const resetBtn = document.getElementById("resetBtn");
+const messagePopup = document.getElementById("messagePopup");
 
 const TILE = 40;
 const COLS = canvas.width / TILE;
@@ -154,19 +161,26 @@ function generateGrassRow() {
 
 function generateWaterRow(rowIndex) {
   const row = new Array(COLS).fill(TERRAIN.WATER);
-  const mode = Math.random() < 0.5 ? "static" : "moving";
 
-  if (mode === "static") {
-    for (let i = 0; i < COLS; i++) {
-      if (Math.random() < 0.5) row[i] = TERRAIN.LOG;
-    }
-    if (!row.includes(TERRAIN.LOG)) {
-      row[Math.floor(Math.random() * COLS)] = TERRAIN.LOG;
-    }
+  // Guarantee safe path
+  let safeCol;
+
+  if (rowIndex > 0 && rows[rowIndex - 1].includes(TERRAIN.WATER)) {
+    const prevSafe = rows[rowIndex - 1].findIndex(t => t === TERRAIN.LOG);
+    safeCol = prevSafe + (Math.random() < 0.5 ? -1 : 1);
+
+    if (safeCol < 0) safeCol = 0;
+    if (safeCol >= COLS) safeCol = COLS - 1;
   } else {
-    const direction = Math.random() < 0.5 ? 1 : -1;
-    const speed = 1.2;
-    logLanes[rowIndex] = { direction, speed };
+    safeCol = Math.floor(Math.random() * COLS);
+  }
+
+  row[safeCol] = TERRAIN.LOG;
+
+  for (let i = 0; i < COLS; i++) {
+    if (i !== safeCol && Math.random() < 0.4) {
+      row[i] = TERRAIN.LOG;
+    }
   }
 
   return row;
@@ -183,30 +197,6 @@ function generateRow(rowIndex) {
   return new Array(COLS).fill(TERRAIN.GRASS);
 }
 
-function createMovingLogs(rowIndex) {
-  const lane = logLanes[rowIndex];
-  if (!lane) return;
-
-  const logCount = 6;
-  for (let i = 0; i < logCount; i++) {
-    const length = TILE * (1.2 + Math.random() * 1.5);
-    const spacing = 120 + Math.random() * 120;
-
-    obstacles.push({
-      type: OBST.MOVING_LOG,
-      row: rowIndex,
-      x: lane.direction === 1
-        ? -TILE - i * spacing
-        : canvas.width + TILE + i * spacing,
-      y: rowIndex * TILE,
-      width: length,
-      height: TILE * 0.6,
-      speed: lane.speed,
-      direction: lane.direction
-    });
-  }
-}
-
 function addAnimalLane(rowIndex) {
   const laneSpeed = 1.8 + Math.random() * 2.2;
   const direction = Math.random() < 0.5 ? 1 : -1;
@@ -220,9 +210,7 @@ function addAnimalLane(rowIndex) {
     obstacles.push({
       type,
       row: rowIndex,
-      x: direction === 1
-        ? -positionOffset
-        : canvas.width + positionOffset,
+      x: direction === 1 ? -positionOffset : canvas.width + positionOffset,
       y: rowIndex * TILE,
       width: TILE * (1.1 + Math.random() * 0.4),
       height: TILE * 0.8,
@@ -243,9 +231,7 @@ function generateWorld() {
     const terrainRow = generateRow(r);
     rows.push(terrainRow);
 
-    if (logLanes[r]) {
-      createMovingLogs(r);
-    } else if (terrainRow.includes(TERRAIN.WATER)) {
+    if (terrainRow.includes(TERRAIN.WATER)) {
       // static logs only
     } else if (r < ROWS - 2 && Math.random() < 0.5) {
       addAnimalLane(r);
@@ -258,8 +244,11 @@ function resetGame() {
   gameOver = false;
   generateWorld();
   initLeonard();
-  statusEl.textContent = "Leonard the Lion – Forest Crossing";
+
   resetBtn.style.display = "none";
+  messagePopup.style.display = "none";
+
+  scoreEl.textContent = "Score: " + score;
 }
 
 resetBtn.onclick = () => resetGame();
@@ -292,7 +281,7 @@ function moveLeonard(dx, dy) {
   }
 }
 
-// Keyboard controls (desktop)
+// Keyboard controls
 window.addEventListener("keydown", (e) => {
   if (gameOver && e.key === "Enter") return resetGame();
   if (e.key === "ArrowLeft") moveLeonard(-1, 0);
@@ -301,7 +290,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "ArrowDown") moveLeonard(0, 1);
 });
 
-// Swipe controls (mobile)
+// Swipe controls
 let touchStartX = 0;
 let touchStartY = 0;
 let touchEndX = 0;
@@ -351,7 +340,7 @@ function updateObstacles(dt) {
   for (let o of obstacles) {
     o.x += o.speed * o.direction;
 
-    // Leonard rides moving logs and stays on them
+    // Leonard rides moving logs and stays centered
     if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
       const lx = leonard.x + TILE * 0.5;
 
@@ -368,22 +357,14 @@ function updateObstacles(dt) {
 
     // Wrap logs
     if (o.type === OBST.MOVING_LOG) {
-      if (o.direction === 1 && o.x > canvas.width + 100) {
-        o.x = -200;
-      }
-      if (o.direction === -1 && o.x < -200) {
-        o.x = canvas.width + 100;
-      }
+      if (o.direction === 1 && o.x > canvas.width + 100) o.x = -200;
+      if (o.direction === -1 && o.x < -200) o.x = canvas.width + 100;
     }
 
     // Wrap animals
     if (o.type === OBST.BOAR || o.type === OBST.DEER) {
-      if (o.direction === 1 && o.x > canvas.width + 100) {
-        o.x = -200;
-      }
-      if (o.direction === -1 && o.x < -200) {
-        o.x = canvas.width + 100;
-      }
+      if (o.direction === 1 && o.x > canvas.width + 100) o.x = -200;
+      if (o.direction === -1 && o.x < -200) o.x = canvas.width + 100;
     }
   }
 }
@@ -394,19 +375,17 @@ function checkCollisions() {
   if (terrain === TERRAIN.WATER) {
     let onLog = false;
 
-    if (logLanes[leonard.row]) {
-      for (let o of obstacles) {
-        if (o.type === OBST.MOVING_LOG && o.row === leonard.row) {
-          if (leonard.x + TILE * 0.5 > o.x &&
-              leonard.x + TILE * 0.5 < o.x + o.width) {
-            onLog = true;
-          }
+    for (let o of obstacles) {
+      if (o.type === OBST.MOVING_LOG && o.row === leonard.row) {
+        if (leonard.x + TILE * 0.5 > o.x &&
+            leonard.x + TILE * 0.5 < o.x + o.width) {
+          onLog = true;
         }
       }
-    } else {
-      if (rows[leonard.row][leonard.col] === TERRAIN.LOG) {
-        onLog = true;
-      }
+    }
+
+    if (rows[leonard.row][leonard.col] === TERRAIN.LOG) {
+      onLog = true;
     }
 
     if (!onLog) endGame("Leonard fell into the river!");
@@ -432,7 +411,10 @@ function checkCollisions() {
 
 function endGame(msg) {
   gameOver = true;
-  statusEl.textContent = msg;
+
+  messagePopup.textContent = msg;
+  messagePopup.style.display = "block";
+
   resetBtn.style.display = "block";
 }
 
