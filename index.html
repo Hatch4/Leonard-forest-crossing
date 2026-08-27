@@ -301,6 +301,7 @@ function moveLeonard(dx, dy) {
   leonard.targetX = newCol * TILE;
   leonard.targetY = newRow * TILE;
   leonard.moving = true;
+  leonard.onLog = false;
   leonard.moveProgress = 0;
 
   if (dy === -1) {
@@ -366,30 +367,34 @@ function updateObstacles(dt) {
 
     // Leonard rides moving logs using pixel position (no grid snapping)
     if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
-      const centerX = leonard.x + TILE * 0.5;
+  const centerX = leonard.x + TILE * 0.5;
 
-      if (centerX > o.x && centerX < o.x + o.width) {
+  if (centerX > o.x && centerX < o.x + o.width) {
 
-        // Leonard is riding a log
-        leonard.onLog = true;
+    // Leonard is riding a log
+    leonard.onLog = true;
 
-        // Stop movement animation
-        leonard.moving = false;
-        leonard.moveProgress = 0;
-        leonard.targetX = leonard.x;
-        leonard.targetY = leonard.y;
+    // Stop movement animation
+    leonard.moving = false;
+    leonard.moveProgress = 0;
+    leonard.targetX = leonard.x;
+    leonard.targetY = leonard.y;
 
-        // Move Leonard with the log
-        leonard.x += o.speed * o.direction;
+    // Move Leonard with the log
+    leonard.x += o.speed * o.direction;
 
-        // Wrap around screen
-        if (leonard.x > canvas.width) leonard.x = -TILE;
-        if (leonard.x < -TILE) leonard.x = canvas.width;
+    // Wrap around screen
+    if (leonard.x > canvas.width) leonard.x = -TILE;
+    if (leonard.x < -TILE) leonard.x = canvas.width;
 
-        // Update grid position
-        leonard.col = Math.floor((leonard.x + TILE/2) / TILE);
-      }
-    }
+    // ⭐ UPDATE GRID POSITION BASED ON PIXEL POSITION
+    leonard.col = Math.floor((leonard.x + TILE/2) / TILE);
+
+    // Prevent invalid column after wrap
+    if (leonard.col < 0) leonard.col = 0;
+    if (leonard.col >= COLS) leonard.col = COLS - 1;
+  }
+}
 
     // Wrap logs
     if (o.type === OBST.MOVING_LOG) {
@@ -406,7 +411,7 @@ function updateObstacles(dt) {
 }
 
 function checkCollisions() {
-  const colFromPixel = Math.floor((leonard.x + TILE/2) / TILE);
+  const colFromPixel = leonard.col;
   const terrain = rows[leonard.row][colFromPixel];
 
   if (terrain === TERRAIN.WATER) {
