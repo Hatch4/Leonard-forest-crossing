@@ -436,6 +436,7 @@ function checkCollisions() {
   if (terrain === TERRAIN.WATER) {
     let onLog = false;
 
+    // Moving logs
     for (let o of obstacles) {
       if (o.type === OBST.MOVING_LOG && o.row === leonard.row) {
         const lx1 = leonard.x + 4;
@@ -449,13 +450,16 @@ function checkCollisions() {
       }
     }
 
-    if (rows[leonard.row][colFromPixel] === TERRAIN.LOG) {
+    // Static logs are safe ONLY on non-moving-log rows
+    if (rows[leonard.row][colFromPixel] === TERRAIN.LOG && !logLanes[leonard.row]) {
       onLog = true;
     }
 
+    // ⭐ Drowning check MUST be inside the WATER block
     if (!onLog) endGame("Leonard fell into the river!");
   }
 
+  // Animal collisions
   for (let o of obstacles) {
     if (o.row !== leonard.row) continue;
 
