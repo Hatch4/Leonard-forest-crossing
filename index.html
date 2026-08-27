@@ -542,8 +542,14 @@ function drawTerrain() {
 // Draw a sprite frame
 function drawSprite(characterKey, frameIndex, x, y) {
   const frames = FRAMES[characterKey];
-  if (!frames) return;
-  const [sx, sy] = frames[frameIndex];
+  if (!frames) {
+    console.warn("Missing frame key:", characterKey);
+    return;
+  }
+
+  const safeIndex = frameIndex % frames.length;
+  const [sx, sy] = frames[safeIndex];
+
   ctx.drawImage(spriteSheet, sx, sy, SPRITE_SIZE, SPRITE_SIZE, x, y, TILE, TILE);
 }
 
