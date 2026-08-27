@@ -141,7 +141,8 @@ let leonard = {
   targetX: 0,
   targetY: 0,
   moving: false,
-  moveProgress: 0
+  moveProgress: 0,
+  onLog: false
 };
 
 function initLeonard() {
@@ -152,6 +153,7 @@ function initLeonard() {
   leonard.targetX = leonard.x;
   leonard.targetY = leonard.y;
   leonard.moving = false;
+  leonard.onLog = false;
 }
 
 function generateGrassRow() {
@@ -284,6 +286,8 @@ resetBtn.onclick = () => resetGame();
 function moveLeonard(dx, dy) {
   if (gameOver || leonard.moving) return;
 
+  leonard.onLog = false;
+
   const newCol = leonard.col + dx;
   const newRow = leonard.row + dy;
 
@@ -308,15 +312,6 @@ function moveLeonard(dx, dy) {
     endGame("Leonard made it across the forest!");
   }
 }
-
-// Keyboard controls
-window.addEventListener("keydown", (e) => {
-  if (gameOver && e.key === "Enter") return resetGame();
-  if (e.key === "ArrowLeft") moveLeonard(-1, 0);
-  if (e.key === "ArrowRight") moveLeonard(1, 0);
-  if (e.key === "ArrowUp") moveLeonard(0, -1);
-  if (e.key === "ArrowDown") moveLeonard(0, 1);
-});
 
 // Swipe controls
 let touchStartX = 0;
@@ -349,6 +344,7 @@ canvas.addEventListener("touchend", (e) => {
 });
 
 function updateLeonard(dt) {
+  if (leonard.onLog) return;
   if (!leonard.moving) return;
 
   leonard.moveProgress += dt * 6;
@@ -374,6 +370,9 @@ function updateObstacles(dt) {
 
       if (centerX > o.x && centerX < o.x + o.width) {
 
+        // Leonard is riding a log
+        leonard.onLog = true;
+
         // Stop movement animation
         leonard.moving = false;
         leonard.moveProgress = 0;
@@ -387,7 +386,7 @@ function updateObstacles(dt) {
         if (leonard.x > canvas.width) leonard.x = -TILE;
         if (leonard.x < -TILE) leonard.x = canvas.width;
 
-        // ⭐ UPDATE GRID POSITION BASED ON PIXEL POSITION
+        // Update grid position
         leonard.col = Math.floor((leonard.x + TILE/2) / TILE);
       }
     }
