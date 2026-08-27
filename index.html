@@ -370,6 +370,7 @@ function updateObstacles(dt) {
   const centerX = leonard.x + TILE * 0.5;
 
   if (centerX > o.x && centerX < o.x + o.width) {
+    console.log("ON LOG");
 
     // Leonard is riding a log
     leonard.onLog = true;
