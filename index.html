@@ -16,7 +16,6 @@
     color: #fff;
     overflow: hidden;
   }
-
   #game-container {
     position: relative;
     width: 100vw;
@@ -88,7 +87,6 @@
 </style>
 </head>
 <body>
-
 <div id="game-container">
   <div id="ui">
     <div id="score">Score: 0</div>
@@ -132,6 +130,25 @@ let gameOver = false;
 
 let waterRowIndex = 0;
 
+// 🔹 Sprite sheet setup
+const SPRITE_SIZE = 32;
+const FRAME_COUNT = 3;
+const spriteSheet = new Image();
+spriteSheet.src = "characters.png";
+
+const FRAMES = {
+  leonardRight: [ [0,0], [32,0], [64,0] ],
+  leonardLeft:  [ [0,32], [32,32], [64,32] ],
+  boarRight:    [ [0,64], [32,64], [64,64] ],
+  boarLeft:     [ [0,96], [32,96], [64,96] ],
+  deerRight:    [ [0,128], [32,128], [64,128] ],
+  deerLeft:     [ [0,160], [32,160], [64,160] ]
+};
+
+let animFrame = 0;
+let animTime = 0;
+const animSpeed = 120; // ms per frame
+
 let leonard = {
   col: Math.floor(COLS / 2),
   row: ROWS - 1,
@@ -141,7 +158,8 @@ let leonard = {
   targetY: 0,
   moving: false,
   moveProgress: 0,
-  onLog: false
+  onLog: false,
+  dir: "Right" // "Right" or "Left"
 };
 
 function initLeonard() {
@@ -153,6 +171,7 @@ function initLeonard() {
   leonard.targetY = leonard.y;
   leonard.moving = false;
   leonard.onLog = false;
+  leonard.dir = "Right";
 }
 
 function generateGrassRow() {
@@ -187,7 +206,6 @@ function generateWaterRow(rowIndex) {
       row[i] = TERRAIN.LOG;
     }
   }
-
   waterRowIndex++;
   return row;
 }
@@ -267,7 +285,6 @@ function generateWorld() {
     } 
     else if (terrainRow.includes(TERRAIN.WATER) && !logLanes[r]) {
       // static logs only (NOT on moving-log rows)
-      // nothing to spawn here because static logs are already in terrainRow
     } 
     else if (r < ROWS - 2 && Math.random() < 0.5) {
       addAnimalLane(r);
@@ -301,6 +318,10 @@ function moveLeonard(dx, dy) {
 
   const terrain = rows[newRow][newCol];
   if (terrain === TERRAIN.TREE) return;
+
+  // Set direction for animation
+  if (dx > 0) leonard.dir = "Right";
+  else if (dx < 0) leonard.dir = "Left";
 
   leonard.col = newCol;
   leonard.row = newRow;
@@ -383,24 +404,17 @@ function updateObstacles(dt) {
   for (let o of obstacles) {
     o.x += o.speed * o.direction;
 
-    // ⭐ Correct moving-log detection (full-width bounding box)
+    // Moving log + Leonard ride
     if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
-
       const lx1 = leonard.x + 4;
       const lx2 = leonard.x + TILE - 4;
-
       const ox1 = o.x;
       const ox2 = o.x + o.width;
 
       if (lx2 > ox1 && lx1 < ox2) {
-
         leonard.onLog = true;
-
         leonard.row = o.row;
-
-        // ⭐ Snap Leonard vertically onto the log
         leonard.y = o.y;
-
         leonard.moving = false;
         leonard.moveProgress = 0;
         leonard.targetX = leonard.x;
@@ -433,7 +447,7 @@ function checkCollisions() {
   const colFromPixel = leonard.col;
   const terrain = rows[leonard.row][colFromPixel];
 
-  if (terrain === TERRAIN.WATER || logLanes[leonard.row]){
+  if (terrain === TERRAIN.WATER || logLanes[leonard.row]) {
     let onLog = false;
 
     // Moving logs
@@ -455,7 +469,6 @@ function checkCollisions() {
       onLog = true;
     }
 
-    // ⭐ Drowning check MUST be inside the WATER block
     if (!onLog) endGame("Leonard fell into the river!");
   }
 
@@ -480,10 +493,8 @@ function checkCollisions() {
 
 function endGame(msg) {
   gameOver = true;
-
   messagePopup.textContent = msg;
   messagePopup.style.display = "block";
-
   resetBtn.style.display = "block";
 }
 
@@ -509,72 +520,76 @@ function drawTerrain() {
         ctx.fillRect(x + TILE/2 - 4, y + TILE - 12, 8, 12);
       } else if (t === TERRAIN.LOG) {
 
-      // ⭐ Skip drawing ALL stationary logs on moving-log rows
-      if (logLanes[r]) {
-        // Draw water background only
+        // Skip drawing stationary logs on moving-log rows
+        if (logLanes[r]) {
+          ctx.fillStyle = "#1e88e5";
+          ctx.fillRect(x, y, TILE, TILE);
+          continue;
+        }
+
         ctx.fillStyle = "#1e88e5";
         ctx.fillRect(x, y, TILE, TILE);
-        continue;
+
+        ctx.fillStyle = "#8d6e63";
+        ctx.fillRect(x + 4, y + 10, TILE - 8, TILE - 20);
       }
-
-      // Draw stationary log
-      ctx.fillStyle = "#1e88e5";
-      ctx.fillRect(x, y, TILE, TILE);
-
-      ctx.fillStyle = "#8d6e63";
-      ctx.fillRect(x + 4, y + 10, TILE - 8, TILE - 20);
-}
     }
   }
 }
 
+// Draw a sprite frame
+function drawSprite(characterKey, frameIndex, x, y) {
+  const frames = FRAMES[characterKey];
+  if (!frames) return;
+  const [sx, sy] = frames[frameIndex];
+  ctx.drawImage(spriteSheet, sx, sy, SPRITE_SIZE, SPRITE_SIZE, x, y, TILE, TILE);
+}
+
 function drawObstacles() {
   for (let o of obstacles) {
-
     if (o.type === OBST.MOVING_LOG) {
       ctx.fillStyle = "#8d6e63";
       ctx.fillRect(o.x, o.y + TILE * 0.2, o.width, o.height);
       continue;
     }
 
-    ctx.fillStyle = o.type === OBST.BOAR ? "#6d4c41" : "#a1887f";
-    ctx.fillRect(o.x, o.y + TILE * 0.1, o.width, o.height);
+    // Boar / Deer sprites
+    let key;
+    if (o.type === OBST.BOAR) {
+      key = o.direction === 1 ? "boarRight" : "boarLeft";
+    } else if (o.type === OBST.DEER) {
+      key = o.direction === 1 ? "deerRight" : "deerLeft";
+    }
 
-    ctx.fillStyle = "#3e2723";
-    ctx.fillRect(
-      o.x + o.width * 0.6,
-      o.y,
-      o.width * 0.3,
-      o.height * 0.6
-    );
+    // Center sprite in obstacle width
+    const drawX = o.x;
+    const drawY = o.y;
+    drawSprite(key, animFrame, drawX, drawY);
   }
 }
 
 function drawLeonard() {
-  ctx.fillStyle = "#ffb74d";
-  ctx.fillRect(leonard.x + 8, leonard.y + 8, TILE - 16, TILE - 16);
-
-  ctx.fillStyle = "#f57c00";
-  ctx.fillRect(leonard.x + 4, leonard.y + 4, TILE - 8, TILE - 8);
-
-  ctx.fillStyle = "#ffe0b2";
-  ctx.fillRect(leonard.x + 12, leonard.y + 12, TILE - 24, TILE - 24);
-
-  ctx.fillStyle = "#000";
-  ctx.fillRect(leonard.x + 16, leonard.y + 18, 4, 4);
-  ctx.fillRect(leonard.x + TILE - 20, leonard.y + 18, 4, 4);
+  const key = leonard.dir === "Right" ? "leonardRight" : "leonardLeft";
+  drawSprite(key, animFrame, leonard.x, leonard.y);
 }
 
 let lastTime = 0;
 function loop(ts) {
-  const dt = (ts - lastTime) / 1000;
+  const dt = (ts - lastTime);
   lastTime = ts;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (!gameOver) {
-    updateLeonard(dt);
-    updateObstacles(dt);
+    // Animation frame update
+    animTime += dt;
+    if (animTime > animSpeed) {
+      animFrame = (animFrame + 1) % FRAME_COUNT;
+      animTime = 0;
+    }
+
+    updateLeonard(dt / 1000);
+    updateObstacles(dt / 1000);
     checkCollisions();
   }
 
@@ -585,8 +600,10 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-resetGame();
-requestAnimationFrame(loop);
+spriteSheet.onload = () => {
+  resetGame();
+  requestAnimationFrame(loop);
+};
 </script>
 </body>
 </html>
