@@ -130,7 +130,6 @@ let logLanes = {};
 let score = 0;
 let gameOver = false;
 
-// Track actual water row count
 let waterRowIndex = 0;
 
 let leonard = {
@@ -166,7 +165,6 @@ function generateGrassRow() {
 
 function generateWaterRow(rowIndex) {
   const row = new Array(COLS).fill(TERRAIN.WATER);
-
   const isMovingLane = waterRowIndex % 2 === 1;
 
   if (!isMovingLane) {
@@ -301,7 +299,6 @@ function moveLeonard(dx, dy) {
   leonard.targetX = newCol * TILE;
   leonard.targetY = newRow * TILE;
   leonard.moving = true;
-  leonard.onLog = false;
   leonard.moveProgress = 0;
 
   if (dy === -1) {
@@ -343,8 +340,8 @@ canvas.addEventListener("touchend", (e) => {
     else if (dy < -swipeThreshold) moveLeonard(0, -1);
   }
 });
-  
-  // Desktop keyboard controls
+
+// Desktop keyboard controls
 window.addEventListener("keydown", (e) => {
   if (gameOver && e.key === "Enter") return resetGame();
   if (e.key === "ArrowLeft") moveLeonard(-1, 0);
@@ -352,10 +349,8 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "ArrowUp") moveLeonard(0, -1);
   if (e.key === "ArrowDown") moveLeonard(0, 1);
 });
-  
-function updateLeonard(dt) {
 
-  // Safety unlock
+function updateLeonard(dt) {
   if (leonard.x === leonard.targetX && leonard.y === leonard.targetY) {
     leonard.moving = false;
   }
@@ -389,7 +384,7 @@ function updateObstacles(dt) {
 
         leonard.onLog = true;
 
-        // ⭐ FIX: ensure Leonard is logically ON the log row
+        // ⭐ Ensure Leonard is logically ON the log row
         leonard.row = o.row;
 
         leonard.moving = false;
@@ -397,12 +392,19 @@ function updateObstacles(dt) {
         leonard.targetX = leonard.x;
         leonard.targetY = leonard.y;
 
+        // Move Leonard with the log
         leonard.x += o.speed * o.direction;
 
+        // Wrap around screen
         if (leonard.x > canvas.width) leonard.x = -TILE;
         if (leonard.x < -TILE) leonard.x = canvas.width;
 
-        leonard.col = Math.floor((leonard.x + TILE/2) / TILE);
+        // ⭐ Prevent drift: snap Leonard to the log’s center lane
+        const logCenter = o.x + o.width / 2;
+        leonard.x = logCenter - (TILE / 2);
+
+        // ⭐ Update grid position based on snapped X
+        leonard.col = Math.floor((leonard.x + TILE / 2) / TILE);
         if (leonard.col < 0) leonard.col = 0;
         if (leonard.col >= COLS) leonard.col = COLS - 1;
       }
@@ -431,11 +433,10 @@ function checkCollisions() {
 
     for (let o of obstacles) {
       if (o.type === OBST.MOVING_LOG && o.row === leonard.row) {
-      const centerX = leonard.x + (TILE - 16) / 2 + 8;
-      if (centerX > o.x && centerX < o.x + o.width) {
+        const centerX = leonard.x + (TILE - 16) / 2 + 8;
+        if (centerX > o.x && centerX < o.x + o.width) {
           onLog = true;
         }
-
       }
     }
 
@@ -516,7 +517,12 @@ function drawObstacles() {
     ctx.fillRect(o.x, o.y + TILE * 0.1, o.width, o.height);
 
     ctx.fillStyle = "#3e2723";
-    ctx.fillRect(o.x + o.width * 0.6, o.y, o.width * 0.3, o.height * 0.6);
+    ctx.fillRect(
+      o.x + o.width * 0.6,
+      o.y,
+      o.width * 0.3,
+      o.height * 0.6
+    );
   }
 }
 
