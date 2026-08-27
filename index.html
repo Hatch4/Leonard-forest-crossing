@@ -433,7 +433,7 @@ function checkCollisions() {
   const colFromPixel = leonard.col;
   const terrain = rows[leonard.row][colFromPixel];
 
-  if (terrain === TERRAIN.WATER) {
+  if (terrain === TERRAIN.WATER || logLanes[leonard.row]){
     let onLog = false;
 
     // Moving logs
