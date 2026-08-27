@@ -374,7 +374,7 @@ function updateObstacles(dt) {
 
       if (centerX > o.x && centerX < o.x + o.width) {
 
-        // ⭐ FIX: Stop Leonard's movement animation when riding a log
+        // Stop movement animation
         leonard.moving = false;
         leonard.moveProgress = 0;
         leonard.targetX = leonard.x;
@@ -386,6 +386,9 @@ function updateObstacles(dt) {
         // Wrap around screen
         if (leonard.x > canvas.width) leonard.x = -TILE;
         if (leonard.x < -TILE) leonard.x = canvas.width;
+
+        // ⭐ UPDATE GRID POSITION BASED ON PIXEL POSITION
+        leonard.col = Math.floor((leonard.x + TILE/2) / TILE);
       }
     }
 
