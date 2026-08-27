@@ -343,8 +343,23 @@ canvas.addEventListener("touchend", (e) => {
     else if (dy < -swipeThreshold) moveLeonard(0, -1);
   }
 });
-
+  
+  // Desktop keyboard controls
+window.addEventListener("keydown", (e) => {
+  if (gameOver && e.key === "Enter") return resetGame();
+  if (e.key === "ArrowLeft") moveLeonard(-1, 0);
+  if (e.key === "ArrowRight") moveLeonard(1, 0);
+  if (e.key === "ArrowUp") moveLeonard(0, -1);
+  if (e.key === "ArrowDown") moveLeonard(0, 1);
+});
+  
 function updateLeonard(dt) {
+
+  // Safety unlock
+  if (leonard.x === leonard.targetX && leonard.y === leonard.targetY) {
+    leonard.moving = false;
+  }
+
   if (leonard.onLog) return;
   if (!leonard.moving) return;
 
@@ -365,34 +380,33 @@ function updateObstacles(dt) {
   for (let o of obstacles) {
     o.x += o.speed * o.direction;
 
-        // Leonard rides moving logs using pixel position (no grid snapping)
+    // ⭐ Correct moving-log detection
     if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
-      // Use Leonard's actual sprite center (offset by +8, width TILE - 16)
+
       const centerX = leonard.x + (TILE - 16) / 2 + 8;
 
       if (centerX > o.x && centerX < o.x + o.width) {
+
         leonard.onLog = true;
 
-        // Stop movement animation
+        // ⭐ FIX: ensure Leonard is logically ON the log row
+        leonard.row = o.row;
+
         leonard.moving = false;
         leonard.moveProgress = 0;
         leonard.targetX = leonard.x;
         leonard.targetY = leonard.y;
 
-        // Move Leonard with the log
         leonard.x += o.speed * o.direction;
 
-        // Wrap around screen
         if (leonard.x > canvas.width) leonard.x = -TILE;
         if (leonard.x < -TILE) leonard.x = canvas.width;
 
-        // Update grid position from pixel
-        leonard.col = Math.floor((leonard.x + TILE / 2) / TILE);
+        leonard.col = Math.floor((leonard.x + TILE/2) / TILE);
         if (leonard.col < 0) leonard.col = 0;
         if (leonard.col >= COLS) leonard.col = COLS - 1;
       }
     }
-
 
     // Wrap logs
     if (o.type === OBST.MOVING_LOG) {
