@@ -1,622 +1,186 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<title>Leonard the Lion – Forest Crossing</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<style>
-  body {
-    margin: 0;
-    background: #222;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    font-family: sans-serif;
-    color: #fff;
-    overflow: hidden;
-  }
-  #game-container {
-    position: relative;
-    width: 100vw;
-    max-width: 600px;
-    height: 100vh;
-    max-height: 900px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-  }
-
-  #ui {
-    width: 100%;
-    padding: env(safe-area-inset-top) 12px 8px 12px;
-    box-sizing: border-box;
-    font-size: 16px;
-    position: relative;
-    z-index: 10;
-  }
-
-  #score {
-    position: absolute;
-    left: 12px;
-    top: calc(env(safe-area-inset-top) + 8px);
-  }
-
-  canvas {
-    background: #87ceeb;
-    border: 2px solid #fff;
-    width: 100vw;
-    max-width: 600px;
-    height: auto;
-    max-height: calc(100vh - 120px);
-    image-rendering: pixelated;
-    touch-action: none;
-  }
-
-  #messagePopup {
-    position: absolute;
-    top: 40%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0,0,0,0.85);
-    padding: 20px 30px;
-    border-radius: 12px;
-    font-size: 20px;
-    text-align: center;
-    display: none;
-    max-width: 80%;
-    z-index: 20;
-  }
-
-  #resetBtn {
-    position: absolute;
-    top: calc(40% + 110px);
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 12px 20px;
-    font-size: 18px;
-    background: #ff9800;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    display: none;
-    cursor: pointer;
-    z-index: 20;
-  }
-</style>
+    <title>Leonard Game</title>
+    <style>
+        body {
+            margin: 0;
+            background: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        canvas {
+            background: #88ccee;
+            border: 3px solid #000;
+        }
+    </style>
 </head>
 <body>
-<div id="game-container">
-  <div id="ui">
-    <div id="score">Score: 0</div>
-  </div>
 
-  <canvas id="game" width="480" height="640"></canvas>
-
-  <div id="messagePopup"></div>
-  <button id="resetBtn">Restart Game</button>
-</div>
+<canvas id="gameCanvas"></canvas>
 
 <script>
-const canvas = document.getElementById("game");
+// =========================
+// Canvas Setup
+// =========================
+const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-const scoreEl = document.getElementById("score");
-const resetBtn = document.getElementById("resetBtn");
-const messagePopup = document.getElementById("messagePopup");
 
-const TILE = 40;
-const COLS = canvas.width / TILE;
-const ROWS = canvas.height / TILE;
+canvas.width = 800;
+canvas.height = 600;
 
-const TERRAIN = {
-  GRASS: "grass",
-  WATER: "water",
-  TREE: "tree",
-  LOG: "log"
+// =========================
+// Load Images
+// =========================
+const leonardIdle = new Image();
+leonardIdle.src = "images/leonardidle.png";
+
+const leonardLeft = new Image();
+leonardLeft.src = "images/leonardleft.png";
+
+const leonardRight = new Image();
+leonardRight.src = "images/leonardright.png";
+
+const deerLeft = new Image();
+deerLeft.src = "images/deerleft.png";
+
+const deerRight = new Image();
+deerRight.src = "images/deerright.png";
+
+const boarLeft = new Image();
+boarLeft.src = "images/boarleft.png";
+
+const boarRight = new Image();
+boarRight.src = "images/boarright.png";
+
+// =========================
+// Player (Leonard)
+// =========================
+const player = {
+    x: 200,
+    y: 300,
+    speed: 3,
+    direction: "idle", // idle, left, right
+    width: 40,
+    height: 40
 };
 
-const OBST = {
-  BOAR: "boar",
-  DEER: "deer",
-  MOVING_LOG: "moving_log"
-};
+// =========================
+// Animals (Boar + Deer)
+// =========================
+let animals = [];
 
-let rows = [];
-let obstacles = [];
-let logLanes = {};
-let score = 0;
-let gameOver = false;
+function spawnAnimal(type) {
+    const facing = Math.random() < 0.5 ? "left" : "right";
 
-let waterRowIndex = 0;
-
-// 🔹 Sprite sheet setup
-const SPRITE_SIZE = 40;
-const FRAME_COUNT = 3;
-const spriteSheet = new Image();
-spriteSheet.src = "characters.png";
-
-const FRAMES = {
-  leonardIdleRight: [ [0,0] ],
-  leonardIdleLeft:  [ [0,40] ],
-  leonardRight: [ [0,80], [40,80], [80,80] ],
-  leonardLeft:  [ [0,120], [40,120], [80,120] ],
-  boarRight:    [ [0,160], [40,160], [80,160] ],
-  boarLeft:     [ [0,200], [40,200], [80,200] ],
-  deerRight:    [ [0,240], [40,240], [80,240] ],
-  deerLeft:     [ [0,280], [40,280], [80,280] ]
-};
-
-let animFrame = 0;
-let animTime = 0;
-const animSpeed = 120; // ms per frame
-
-let leonard = {
-  col: Math.floor(COLS / 2),
-  row: ROWS - 1,
-  x: 0,
-  y: 0,
-  targetX: 0,
-  targetY: 0,
-  moving: false,
-  moveProgress: 0,
-  onLog: false,
-  dir: "Right" // "Right" or "Left"
-};
-
-function initLeonard() {
-  leonard.col = Math.floor(COLS / 2);
-  leonard.row = ROWS - 1;
-  leonard.x = leonard.col * TILE;
-  leonard.y = leonard.row * TILE;
-  leonard.targetX = leonard.x;
-  leonard.targetY = leonard.y;
-  leonard.moving = false;
-  leonard.onLog = false;
-  leonard.dir = "Right";
-}
-
-function generateGrassRow() {
-  const row = new Array(COLS).fill(TERRAIN.GRASS);
-  for (let i = 0; i < COLS; i++) {
-    if (Math.random() < 0.15) row[i] = TERRAIN.TREE;
-  }
-  return row;
-}
-
-function generateWaterRow(rowIndex) {
-  const row = new Array(COLS).fill(TERRAIN.WATER);
-
-  const isMovingLane = (waterRowIndex % 2 === 1);
-
-  if (!isMovingLane) {
-    for (let i = 0; i < COLS; i++) {
-      if (Math.random() < 0.5) row[i] = TERRAIN.LOG;
-    }
-    if (!row.includes(TERRAIN.LOG)) {
-      row[Math.floor(Math.random() * COLS)] = TERRAIN.LOG;
-    }
-  }
-
-  if (isMovingLane) {
-    logLanes[rowIndex] = {
-      direction: Math.random() < 0.5 ? 1 : -1,
-      speed: 1.2 + Math.random() * 1.2
-    };
-
-    for (let i = 0; i < COLS; i++) {
-      row[i] = TERRAIN.LOG;
-    }
-  }
-  waterRowIndex++;
-  return row;
-}
-
-function generateRow(rowIndex) {
-  if (rowIndex === ROWS - 1) {
-    return new Array(COLS).fill(TERRAIN.GRASS);
-  }
-
-  const r = Math.random();
-  if (r < 0.4) return generateGrassRow();
-  if (r < 0.7) return generateWaterRow(rowIndex);
-  return new Array(COLS).fill(TERRAIN.GRASS);
-}
-
-function createMovingLogs(rowIndex) {
-  const lane = logLanes[rowIndex];
-  if (!lane) return;
-
-  const logCount = 5;
-  for (let i = 0; i < logCount; i++) {
-    const length = TILE * (1.2 + Math.random() * 1.5);
-    const spacing = 140 + Math.random() * 160;
-
-    obstacles.push({
-      type: OBST.MOVING_LOG,
-      row: rowIndex,
-      x: lane.direction === 1
-        ? -TILE - i * spacing
-        : canvas.width + TILE + i * spacing,
-      y: rowIndex * TILE,
-      width: length,
-      height: TILE * 0.6,
-      speed: lane.speed,
-      direction: lane.direction
+    animals.push({
+        type: type, // "boar" or "deer"
+        x: facing === "left" ? canvas.width + 50 : -50,
+        y: 300 + Math.random() * 100 - 50,
+        speed: type === "boar" ? 2.5 : 2,
+        facing: facing,
+        width: 40,
+        height: 40
     });
-  }
 }
 
-function addAnimalLane(rowIndex) {
-  const laneSpeed = 1.8 + Math.random() * 2.2;
-  const direction = Math.random() < 0.5 ? 1 : -1;
-  const animalCount = 1 + Math.floor(Math.random() * 5);
-  let positionOffset = Math.random() * 300;
+// Spawn loop
+setInterval(() => {
+    const roll = Math.random();
+    if (roll < 0.33) spawnAnimal("boar");
+    else if (roll < 0.66) spawnAnimal("deer");
+}, 2000);
 
-  for (let i = 0; i < animalCount; i++) {
-    const spacing = 120 + Math.random() * 250;
-    const type = Math.random() < 0.5 ? OBST.BOAR : OBST.DEER;
+// =========================
+// Input
+// =========================
+let keys = {};
 
-    obstacles.push({
-      type,
-      row: rowIndex,
-      x: direction === 1 ? -positionOffset : canvas.width + positionOffset,
-      y: rowIndex * TILE,
-      width: TILE * (1.1 + Math.random() * 0.4),
-      height: TILE * 0.8,
-      speed: laneSpeed,
-      direction
+document.addEventListener("keydown", (e) => {
+    keys[e.key] = true;
+});
+
+document.addEventListener("keyup", (e) => {
+    keys[e.key] = false;
+});
+
+// =========================
+// Update Player
+// =========================
+function updatePlayer() {
+    if (keys["ArrowLeft"]) {
+        player.x -= player.speed;
+        player.direction = "left";
+    } else if (keys["ArrowRight"]) {
+        player.x += player.speed;
+        player.direction = "right";
+    } else {
+        player.direction = "idle";
+    }
+}
+
+// =========================
+// Update Animals
+// =========================
+function updateAnimals() {
+    animals.forEach((a) => {
+        if (a.facing === "left") a.x -= a.speed;
+        else a.x += a.speed;
     });
 
-    positionOffset += spacing;
-  }
+    // Remove off-screen animals
+    animals = animals.filter(a => a.x > -100 && a.x < canvas.width + 100);
 }
 
-function generateWorld() {
-  rows = [];
-  obstacles = [];
-  logLanes = {};
-  waterRowIndex = 0;
-
-  for (let r = 0; r < ROWS; r++) {
-    const terrainRow = generateRow(r);
-    rows.push(terrainRow);
-
-    if (logLanes[r]) {
-      createMovingLogs(r);
-    } 
-    else if (terrainRow.includes(TERRAIN.WATER) && !logLanes[r]) {
-      // static logs only (NOT on moving-log rows)
-    } 
-    else if (r < ROWS - 2 && Math.random() < 0.5) {
-      addAnimalLane(r);
+// =========================
+// Draw Player
+// =========================
+function drawPlayer() {
+    if (player.direction === "left") {
+        ctx.drawImage(leonardLeft, player.x, player.y);
+    } else if (player.direction === "right") {
+        ctx.drawImage(leonardRight, player.x, player.y);
+    } else {
+        ctx.drawImage(leonardIdle, player.x, player.y);
     }
-  }
 }
 
-function resetGame() {
-  score = 0;
-  gameOver = false;
-  generateWorld();
-  initLeonard();
+// =========================
+// Draw Animals
+// =========================
+function drawAnimals() {
+    animals.forEach((a) => {
+        let img;
 
-  resetBtn.style.display = "none";
-  messagePopup.style.display = "none";
-
-  scoreEl.textContent = "Score: " + score;
-}
-
-resetBtn.onclick = () => resetGame();
-
-function moveLeonard(dx, dy) {
-  if (gameOver || leonard.moving) return;
-
-  leonard.onLog = false;
-
-  const newCol = leonard.col + dx;
-  const newRow = leonard.row + dy;
-
-  if (newCol < 0 || newCol >= COLS || newRow < 0 || newRow >= ROWS) return;
-
-  const terrain = rows[newRow][newCol];
-  if (terrain === TERRAIN.TREE) return;
-
-  // Set direction for animation
-  if (dx > 0) leonard.dir = "Right";
-  else if (dx < 0) leonard.dir = "Left";
-
-  leonard.col = newCol;
-  leonard.row = newRow;
-  leonard.targetX = newCol * TILE;
-  leonard.targetY = newRow * TILE;
-  leonard.moving = true;
-  leonard.moveProgress = 0;
-
-  if (dy === -1) {
-    score++;
-    scoreEl.textContent = "Score: " + score;
-  }
-
-  if (newRow === 0) {
-    endGame("Leonard made it across the forest!");
-  }
-}
-
-// Swipe controls
-let touchStartX = 0;
-let touchStartY = 0;
-let touchEndX = 0;
-let touchEndY = 0;
-const swipeThreshold = 30;
-
-canvas.addEventListener("touchstart", (e) => {
-  const t = e.changedTouches[0];
-  touchStartX = t.clientX;
-  touchStartY = t.clientY;
-});
-
-canvas.addEventListener("touchend", (e) => {
-  const t = e.changedTouches[0];
-  touchEndX = t.clientX;
-  touchEndY = t.clientY;
-
-  const dx = touchEndX - touchStartX;
-  const dy = touchEndY - touchStartY;
-
-  if (Math.abs(dx) > Math.abs(dy)) {
-    if (dx > swipeThreshold) moveLeonard(1, 0);
-    else if (dx < -swipeThreshold) moveLeonard(-1, 0);
-  } else {
-    if (dy > swipeThreshold) moveLeonard(0, 1);
-    else if (dy < -swipeThreshold) moveLeonard(0, -1);
-  }
-});
-
-// Desktop keyboard controls
-window.addEventListener("keydown", (e) => {
-  if (gameOver && e.key === "Enter") return resetGame();
-  if (e.key === "ArrowLeft") moveLeonard(-1, 0);
-  if (e.key === "ArrowRight") moveLeonard(1, 0);
-  if (e.key === "ArrowUp") moveLeonard(0, -1);
-  if (e.key === "ArrowDown") moveLeonard(0, 1);
-});
-
-function updateLeonard(dt) {
-  if (leonard.x === leonard.targetX && leonard.y === leonard.targetY) {
-    leonard.moving = false;
-  }
-
-  if (leonard.onLog) return;
-  if (!leonard.moving) return;
-
-  leonard.moveProgress += dt * 6;
-
-  if (leonard.moveProgress >= 1) {
-    leonard.x = leonard.targetX;
-    leonard.y = leonard.targetY;
-    leonard.moving = false;
-    leonard.moveProgress = 0;
-  } else {
-    leonard.x += (leonard.targetX - leonard.x) * dt * 6;
-    leonard.y += (leonard.targetY - leonard.y) * dt * 6;
-  }
-}
-
-function updateObstacles(dt) {
-  for (let o of obstacles) {
-    o.x += o.speed * o.direction;
-
-    // Moving log + Leonard ride
-    if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
-      const lx1 = leonard.x + 4;
-      const lx2 = leonard.x + TILE - 4;
-      const ox1 = o.x;
-      const ox2 = o.x + o.width;
-
-      if (lx2 > ox1 && lx1 < ox2) {
-        leonard.onLog = true;
-        leonard.row = o.row;
-        leonard.y = o.y;
-        leonard.moving = false;
-        leonard.moveProgress = 0;
-        leonard.targetX = leonard.x;
-        leonard.targetY = leonard.y;
-
-        leonard.x += o.speed * o.direction;
-
-        if (leonard.x > canvas.width) leonard.x = -TILE;
-        if (leonard.x < -TILE) leonard.x = canvas.width;
-
-        leonard.col = Math.floor((leonard.x + TILE / 2) / TILE);
-        if (leonard.col < 0) leonard.col = 0;
-        if (leonard.col >= COLS) leonard.col = COLS - 1;
-      }
-    }
-
-    if (o.type === OBST.MOVING_LOG) {
-      if (o.direction === 1 && o.x > canvas.width + 100) o.x = -200;
-      if (o.direction === -1 && o.x < -200) o.x = canvas.width + 100;
-    }
-
-    if (o.type === OBST.BOAR || o.type === OBST.DEER) {
-      if (o.direction === 1 && o.x > canvas.width + 100) o.x = -200;
-      if (o.direction === -1 && o.x < -200) o.x = canvas.width + 100;
-    }
-  }
-}
-
-function checkCollisions() {
-  const colFromPixel = leonard.col;
-  const terrain = rows[leonard.row][colFromPixel];
-
-  if (terrain === TERRAIN.WATER || logLanes[leonard.row]) {
-    let onLog = false;
-
-    // Moving logs
-    for (let o of obstacles) {
-      if (o.type === OBST.MOVING_LOG && o.row === leonard.row) {
-        const lx1 = leonard.x + 4;
-        const lx2 = leonard.x + TILE - 4;
-        const ox1 = o.x;
-        const ox2 = o.x + o.width;
-
-        if (lx2 > ox1 && lx1 < ox2) {
-          onLog = true;
-        }
-      }
-    }
-
-    // Static logs are safe ONLY on non-moving-log rows
-    if (rows[leonard.row][colFromPixel] === TERRAIN.LOG && !logLanes[leonard.row]) {
-      onLog = true;
-    }
-
-    if (!onLog) endGame("Leonard fell into the river!");
-  }
-
-  // Animal collisions
-  for (let o of obstacles) {
-    if (o.row !== leonard.row) continue;
-
-    const lx = leonard.x + TILE * 0.1;
-    const ly = leonard.y + TILE * 0.1;
-    const lw = TILE * 0.8;
-    const lh = TILE * 0.8;
-
-    if (lx < o.x + o.width &&
-        lx + lw > o.x &&
-        ly < o.y + o.height &&
-        ly + lh > o.y) {
-      if (o.type === OBST.BOAR) endGame("A boar knocked Leonard over!");
-      else if (o.type === OBST.DEER) endGame("Leonard was trampled by a deer!");
-    }
-  }
-}
-
-function endGame(msg) {
-  gameOver = true;
-  messagePopup.textContent = msg;
-  messagePopup.style.display = "block";
-  resetBtn.style.display = "block";
-}
-
-function drawTerrain() {
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const t = rows[r][c];
-      const x = c * TILE;
-      const y = r * TILE;
-
-      if (t === TERRAIN.GRASS) {
-        ctx.fillStyle = "#4caf50";
-        ctx.fillRect(x, y, TILE, TILE);
-      } else if (t === TERRAIN.WATER) {
-        ctx.fillStyle = "#1e88e5";
-        ctx.fillRect(x, y, TILE, TILE);
-      } else if (t === TERRAIN.TREE) {
-        ctx.fillStyle = "#4caf50";
-        ctx.fillRect(x, y, TILE, TILE);
-        ctx.fillStyle = "#2e7d32";
-        ctx.fillRect(x + 8, y + 4, TILE - 16, TILE - 8);
-        ctx.fillStyle = "#5d4037";
-        ctx.fillRect(x + TILE/2 - 4, y + TILE - 12, 8, 12);
-      } else if (t === TERRAIN.LOG) {
-
-        // Skip drawing stationary logs on moving-log rows
-        if (logLanes[r]) {
-          ctx.fillStyle = "#1e88e5";
-          ctx.fillRect(x, y, TILE, TILE);
-          continue;
+        if (a.type === "boar") {
+            img = a.facing === "left" ? boarLeft : boarRight;
+        } else if (a.type === "deer") {
+            img = a.facing === "left" ? deerLeft : deerRight;
         }
 
-        ctx.fillStyle = "#1e88e5";
-        ctx.fillRect(x, y, TILE, TILE);
-
-        ctx.fillStyle = "#8d6e63";
-        ctx.fillRect(x + 4, y + 10, TILE - 8, TILE - 20);
-      }
-    }
-  }
+        ctx.drawImage(img, a.x, a.y);
+    });
 }
 
-// Draw a sprite frame
-function drawSprite(characterKey, frameIndex, x, y) {
-  const frames = FRAMES[characterKey];
-  if (!frames) {
-    console.warn("Missing frame key:", characterKey);
-    return;
-  }
+// =========================
+// Game Loop
+// =========================
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const safeIndex = frameIndex % frames.length;
-  const [sx, sy] = frames[safeIndex];
+    updatePlayer();
+    updateAnimals();
 
-  ctx.drawImage(spriteSheet, sx, sy, SPRITE_SIZE, SPRITE_SIZE, x, y, TILE, TILE);
+    drawPlayer();
+    drawAnimals();
+
+    requestAnimationFrame(gameLoop);
 }
 
-function drawObstacles() {
-  for (let o of obstacles) {
-    if (o.type === OBST.MOVING_LOG) {
-      ctx.fillStyle = "#8d6e63";
-      ctx.fillRect(o.x, o.y + TILE * 0.2, o.width, o.height);
-      continue;
-    }
-
-    // Boar / Deer sprites
-    let key;
-    if (o.type === OBST.BOAR) {
-      key = o.direction === 1 ? "boarRight" : "boarLeft";
-    } else if (o.type === OBST.DEER) {
-      key = o.direction === 1 ? "deerRight" : "deerLeft";
-    }
-
-    // Center sprite in obstacle width
-    const drawX = o.x;
-    const drawY = o.y;
-    drawSprite(key, animFrame, drawX, drawY);
-  }
-}
-
-function drawLeonard() {
-  let key;
-  if (!leonard.moving && !leonard.onLog) {
-    key = leonard.dir === "Right" ? "leonardIdleRight" : "leonardIdleLeft";
-  } else {
-    key = leonard.dir === "Right" ? "leonardRight" : "leonardLeft";
-  }
-  drawSprite(key, animFrame, leonard.x, leonard.y);
-}
-
-let lastTime = 0;
-function loop(ts) {
-  const dt = (ts - lastTime);
-  lastTime = ts;
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  if (!gameOver) {
-    // Animation frame update
-    animTime += dt;
-    if (animTime > animSpeed) {
-      animFrame = (animFrame + 1) % FRAME_COUNT;
-      animTime = 0;
-    }
-
-    updateLeonard(dt / 1000);
-    updateObstacles(dt / 1000);
-    checkCollisions();
-  }
-
-  drawTerrain();
-  drawObstacles();
-  drawLeonard();
-
-  requestAnimationFrame(loop);
-}
-
-spriteSheet.onload = () => {
-  resetGame();
-  requestAnimationFrame(loop);
-};
+gameLoop();
 </script>
+
 </body>
 </html>
