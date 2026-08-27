@@ -264,9 +264,12 @@ function generateWorld() {
 
     if (logLanes[r]) {
       createMovingLogs(r);
-    } else if (terrainRow.includes(TERRAIN.WATER)) {
-      // static logs only
-    } else if (r < ROWS - 2 && Math.random() < 0.5) {
+    } 
+    else if (terrainRow.includes(TERRAIN.WATER) && !logLanes[r]) {
+      // static logs only (NOT on moving-log rows)
+      // nothing to spawn here because static logs are already in terrainRow
+    } 
+    else if (r < ROWS - 2 && Math.random() < 0.5) {
       addAnimalLane(r);
     }
   }
