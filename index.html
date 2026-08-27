@@ -504,11 +504,22 @@ function drawTerrain() {
         ctx.fillStyle = "#5d4037";
         ctx.fillRect(x + TILE/2 - 4, y + TILE - 12, 8, 12);
       } else if (t === TERRAIN.LOG) {
+
+      // ⭐ Skip drawing ALL stationary logs on moving-log rows
+      if (logLanes[r]) {
+        // Draw water background only
         ctx.fillStyle = "#1e88e5";
         ctx.fillRect(x, y, TILE, TILE);
-        ctx.fillStyle = "#8d6e63";
-        ctx.fillRect(x + 4, y + 10, TILE - 8, TILE - 20);
+        continue;
       }
+
+      // Draw stationary log
+      ctx.fillStyle = "#1e88e5";
+      ctx.fillRect(x, y, TILE, TILE);
+
+      ctx.fillStyle = "#8d6e63";
+      ctx.fillRect(x + 4, y + 10, TILE - 8, TILE - 20);
+}
     }
   }
 }
