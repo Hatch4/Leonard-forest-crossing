@@ -131,18 +131,20 @@ let gameOver = false;
 let waterRowIndex = 0;
 
 // 🔹 Sprite sheet setup
-const SPRITE_SIZE = 32;
+const SPRITE_SIZE = 40;
 const FRAME_COUNT = 3;
 const spriteSheet = new Image();
 spriteSheet.src = "characters.png";
 
 const FRAMES = {
-  leonardRight: [ [0,0], [32,0], [64,0] ],
-  leonardLeft:  [ [0,32], [32,32], [64,32] ],
-  boarRight:    [ [0,64], [32,64], [64,64] ],
-  boarLeft:     [ [0,96], [32,96], [64,96] ],
-  deerRight:    [ [0,128], [32,128], [64,128] ],
-  deerLeft:     [ [0,160], [32,160], [64,160] ]
+  leonardIdleRight: [ [0,0] ],
+  leonardIdleLeft:  [ [0,40] ],
+  leonardRight: [ [0,80], [40,80], [80,80] ],
+  leonardLeft:  [ [0,120], [40,120], [80,120] ],
+  boarRight:    [ [0,160], [40,160], [80,160] ],
+  boarLeft:     [ [0,200], [40,200], [80,200] ],
+  deerRight:    [ [0,240], [40,240], [80,240] ],
+  deerLeft:     [ [0,280], [40,280], [80,280] ]
 };
 
 let animFrame = 0;
@@ -569,7 +571,12 @@ function drawObstacles() {
 }
 
 function drawLeonard() {
-  const key = leonard.dir === "Right" ? "leonardRight" : "leonardLeft";
+  let key;
+  if (!leonard.moving && !leonard.onLog) {
+    key = leonard.dir === "Right" ? "leonardIdleRight" : "leonardIdleLeft";
+  } else {
+    key = leonard.dir === "Right" ? "leonardRight" : "leonardLeft";
+  }
   drawSprite(key, animFrame, leonard.x, leonard.y);
 }
 
