@@ -181,6 +181,11 @@ function generateWaterRow(rowIndex) {
       direction: Math.random() < 0.5 ? 1 : -1,
       speed: 1.2 + Math.random() * 1.2
     };
+
+    // ⭐ Mark entire row as LOG so Leonard stands ON the moving logs
+    for (let i = 0; i < COLS; i++) {
+      row[i] = TERRAIN.LOG;
+    }
   }
 
   waterRowIndex++;
@@ -375,40 +380,44 @@ function updateObstacles(dt) {
   for (let o of obstacles) {
     o.x += o.speed * o.direction;
 
-    // ⭐ Correct moving-log detection
-    if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
+   // ⭐ Correct moving-log detection (full-width bounding box)
+if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
 
-      const centerX = leonard.x + (TILE - 16) / 2 + 8;
+  // Leonard bounding box
+  const lx1 = leonard.x + 4;
+  const lx2 = leonard.x + TILE - 4;
 
-      if (centerX > o.x && centerX < o.x + o.width) {
+  // Log bounding box
+  const ox1 = o.x;
+  const ox2 = o.x + o.width;
 
-        leonard.onLog = true;
+  // If ANY part of Leonard overlaps ANY part of the log
+  if (lx2 > ox1 && lx1 < ox2) {
 
-        // ⭐ Ensure Leonard is logically ON the log row
-        leonard.row = o.row;
+    leonard.onLog = true;
 
-        leonard.moving = false;
-        leonard.moveProgress = 0;
-        leonard.targetX = leonard.x;
-        leonard.targetY = leonard.y;
+    // Leonard is logically ON the log row
+    leonard.row = o.row;
 
-        // Move Leonard with the log
-        leonard.x += o.speed * o.direction;
+    // Stop movement animation
+    leonard.moving = false;
+    leonard.moveProgress = 0;
+    leonard.targetX = leonard.x;
+    leonard.targetY = leonard.y;
 
-        // Wrap around screen
-        if (leonard.x > canvas.width) leonard.x = -TILE;
-        if (leonard.x < -TILE) leonard.x = canvas.width;
+    // Move Leonard with the log
+    leonard.x += o.speed * o.direction;
 
-        // ⭐ Prevent drift: snap Leonard to the log’s center lane
-        const logCenter = o.x + o.width / 2;
-        leonard.x = logCenter - (TILE / 2);
+    // Wrap around screen
+    if (leonard.x > canvas.width) leonard.x = -TILE;
+    if (leonard.x < -TILE) leonard.x = canvas.width;
 
-        // ⭐ Update grid position based on snapped X
-        leonard.col = Math.floor((leonard.x + TILE / 2) / TILE);
-        if (leonard.col < 0) leonard.col = 0;
-        if (leonard.col >= COLS) leonard.col = COLS - 1;
-      }
-    }
+    // Update grid position based on pixel
+    leonard.col = Math.floor((leonard.x + TILE / 2) / TILE);
+    if (leonard.col < 0) leonard.col = 0;
+    if (leonard.col >= COLS) leonard.col = COLS - 1;
+  }
+}
 
     // Wrap logs
     if (o.type === OBST.MOVING_LOG) {
