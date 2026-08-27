@@ -1,186 +1,607 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Leonard Game</title>
-    <style>
-        body {
-            margin: 0;
-            background: #222;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        canvas {
-            background: #88ccee;
-            border: 3px solid #000;
-        }
-    </style>
+<meta charset="UTF-8" />
+<title>Leonard the Lion – Forest Crossing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<style>
+  body {
+    margin: 0;
+    background: #222;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: sans-serif;
+    color: #fff;
+    overflow: hidden;
+  }
+
+  #game-container {
+    position: relative;
+    width: 100vw;
+    max-width: 600px;
+    height: 100vh;
+    max-height: 900px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  #ui {
+    width: 100%;
+    padding: env(safe-area-inset-top) 12px 8px 12px;
+    box-sizing: border-box;
+    font-size: 16px;
+    position: relative;
+    z-index: 10;
+  }
+
+  #score {
+    position: absolute;
+    left: 12px;
+    top: calc(env(safe-area-inset-top) + 8px);
+  }
+
+  canvas {
+    background: #87ceeb;
+    border: 2px solid #fff;
+    width: 100vw;
+    max-width: 600px;
+    height: auto;
+    max-height: calc(100vh - 120px);
+    image-rendering: pixelated;
+    touch-action: none;
+  }
+
+  #messagePopup {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.85);
+    padding: 20px 30px;
+    border-radius: 12px;
+    font-size: 20px;
+    text-align: center;
+    display: none;
+    max-width: 80%;
+    z-index: 20;
+  }
+
+  #resetBtn {
+    position: absolute;
+    top: calc(40% + 110px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 20px;
+    font-size: 18px;
+    background: #ff9800;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    display: none;
+    cursor: pointer;
+    z-index: 20;
+  }
+</style>
 </head>
 <body>
 
-<canvas id="gameCanvas"></canvas>
+<div id="game-container">
+  <div id="ui">
+    <div id="score">Score: 0</div>
+  </div>
+
+  <canvas id="game" width="480" height="640"></canvas>
+
+  <div id="messagePopup"></div>
+  <button id="resetBtn">Restart Game</button>
+</div>
 
 <script>
-// =========================
-// Canvas Setup
-// =========================
-const canvas = document.getElementById("gameCanvas");
+const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const resetBtn = document.getElementById("resetBtn");
+const messagePopup = document.getElementById("messagePopup");
 
-canvas.width = 800;
-canvas.height = 600;
+const TILE = 40;
+const COLS = canvas.width / TILE;
+const ROWS = canvas.height / TILE;
 
-// =========================
-// Load Images
-// =========================
-const leonardIdle = new Image();
-leonardIdle.src = "images/leonardidle.png";
-
-const leonardLeft = new Image();
-leonardLeft.src = "images/leonardleft.png";
-
-const leonardRight = new Image();
-leonardRight.src = "images/leonardright.png";
-
-const deerLeft = new Image();
-deerLeft.src = "images/deerleft.png";
-
-const deerRight = new Image();
-deerRight.src = "images/deerright.png";
-
-const boarLeft = new Image();
-boarLeft.src = "images/boarleft.png";
-
-const boarRight = new Image();
-boarRight.src = "images/boarright.png";
-
-// =========================
-// Player (Leonard)
-// =========================
-const player = {
-    x: 200,
-    y: 300,
-    speed: 3,
-    direction: "idle", // idle, left, right
-    width: 40,
-    height: 40
+const TERRAIN = {
+  GRASS: "grass",
+  WATER: "water",
+  TREE: "tree",
+  LOG: "log"
 };
 
-// =========================
-// Animals (Boar + Deer)
-// =========================
-let animals = [];
+const OBST = {
+  BOAR: "boar",
+  DEER: "deer",
+  MOVING_LOG: "moving_log"
+};
 
-function spawnAnimal(type) {
-    const facing = Math.random() < 0.5 ? "left" : "right";
+/* -------------------------
+   LOAD PNG SPRITES
+------------------------- */
+const leonardIdleImg = new Image();
+leonardIdleImg.src = "images/leonardidle.png";
 
-    animals.push({
-        type: type, // "boar" or "deer"
-        x: facing === "left" ? canvas.width + 50 : -50,
-        y: 300 + Math.random() * 100 - 50,
-        speed: type === "boar" ? 2.5 : 2,
-        facing: facing,
-        width: 40,
-        height: 40
-    });
+const leonardLeftImg = new Image();
+leonardLeftImg.src = "images/leonardleft.png";
+
+const leonardRightImg = new Image();
+leonardRightImg.src = "images/leonardright.png";
+
+const deerLeftImg = new Image();
+deerLeftImg.src = "images/deerleft.png";
+
+const deerRightImg = new Image();
+deerRightImg.src = "images/deerright.png";
+
+const boarLeftImg = new Image();
+boarLeftImg.src = "images/boarleft.png";
+
+const boarRightImg = new Image();
+boarRightImg.src = "images/boarright.png";
+
+/* -------------------------
+   GAME STATE
+------------------------- */
+let rows = [];
+let obstacles = [];
+let logLanes = {};
+let score = 0;
+let gameOver = false;
+let waterRowIndex = 0;
+
+let leonard = {
+  col: Math.floor(COLS / 2),
+  row: ROWS - 1,
+  x: 0,
+  y: 0,
+  targetX: 0,
+  targetY: 0,
+  moving: false,
+  moveProgress: 0,
+  onLog: false,
+  facing: "idle"
+};
+
+function initLeonard() {
+  leonard.col = Math.floor(COLS / 2);
+  leonard.row = ROWS - 1;
+  leonard.x = leonard.col * TILE;
+  leonard.y = leonard.row * TILE;
+  leonard.targetX = leonard.x;
+  leonard.targetY = leonard.y;
+  leonard.moving = false;
+  leonard.onLog = false;
+  leonard.facing = "idle";
 }
 
-// Spawn loop
-setInterval(() => {
-    const roll = Math.random();
-    if (roll < 0.33) spawnAnimal("boar");
-    else if (roll < 0.66) spawnAnimal("deer");
-}, 2000);
+/* -------------------------
+   WORLD GENERATION
+------------------------- */
+function generateGrassRow() {
+  const row = new Array(COLS).fill(TERRAIN.GRASS);
+  for (let i = 0; i < COLS; i++) {
+    if (Math.random() < 0.15) row[i] = TERRAIN.TREE;
+  }
+  return row;
+}
 
-// =========================
-// Input
-// =========================
-let keys = {};
+function generateWaterRow(rowIndex) {
+  const row = new Array(COLS).fill(TERRAIN.WATER);
+  const isMovingLane = (waterRowIndex % 2 === 1);
 
-document.addEventListener("keydown", (e) => {
-    keys[e.key] = true;
+  if (!isMovingLane) {
+    for (let i = 0; i < COLS; i++) {
+      if (Math.random() < 0.5) row[i] = TERRAIN.LOG;
+    }
+    if (!row.includes(TERRAIN.LOG)) {
+      row[Math.floor(Math.random() * COLS)] = TERRAIN.LOG;
+    }
+  }
+
+  if (isMovingLane) {
+    logLanes[rowIndex] = {
+      direction: Math.random() < 0.5 ? 1 : -1,
+      speed: 1.2 + Math.random() * 1.2
+    };
+    for (let i = 0; i < COLS; i++) {
+      row[i] = TERRAIN.LOG;
+    }
+  }
+
+  waterRowIndex++;
+  return row;
+}
+
+function generateRow(rowIndex) {
+  if (rowIndex === ROWS - 1) {
+    return new Array(COLS).fill(TERRAIN.GRASS);
+  }
+
+  const r = Math.random();
+  if (r < 0.4) return generateGrassRow();
+  if (r < 0.7) return generateWaterRow(rowIndex);
+  return new Array(COLS).fill(TERRAIN.GRASS);
+}
+
+function createMovingLogs(rowIndex) {
+  const lane = logLanes[rowIndex];
+  if (!lane) return;
+
+  const logCount = 5;
+  for (let i = 0; i < logCount; i++) {
+    const length = TILE * (1.2 + Math.random() * 1.5);
+    const spacing = 140 + Math.random() * 160;
+
+    obstacles.push({
+      type: OBST.MOVING_LOG,
+      row: rowIndex,
+      x: lane.direction === 1
+        ? -TILE - i * spacing
+        : canvas.width + TILE + i * spacing,
+      y: rowIndex * TILE,
+      width: length,
+      height: TILE * 0.6,
+      speed: lane.speed,
+      direction: lane.direction
+    });
+  }
+}
+
+function addAnimalLane(rowIndex) {
+  const laneSpeed = 1.8 + Math.random() * 2.2;
+  const direction = Math.random() < 0.5 ? 1 : -1;
+  const animalCount = 1 + Math.floor(Math.random() * 5);
+  let positionOffset = Math.random() * 300;
+
+  for (let i = 0; i < animalCount; i++) {
+    const spacing = 120 + Math.random() * 250;
+    const type = Math.random() < 0.5 ? OBST.BOAR : OBST.DEER;
+
+    obstacles.push({
+      type,
+      row: rowIndex,
+      x: direction === 1 ? -positionOffset : canvas.width + positionOffset,
+      y: rowIndex * TILE,
+      width: TILE,
+      height: TILE,
+      speed: laneSpeed,
+      direction
+    });
+
+    positionOffset += spacing;
+  }
+}
+
+function generateWorld() {
+  rows = [];
+  obstacles = [];
+  logLanes = {};
+  waterRowIndex = 0;
+
+  for (let r = 0; r < ROWS; r++) {
+    const terrainRow = generateRow(r);
+    rows.push(terrainRow);
+
+    if (logLanes[r]) {
+      createMovingLogs(r);
+    } else if (terrainRow.includes(TERRAIN.WATER) && !logLanes[r]) {
+      // static logs already in terrainRow
+    } else if (r < ROWS - 2 && Math.random() < 0.5) {
+      addAnimalLane(r);
+    }
+  }
+}
+
+/* -------------------------
+   GAME OVER
+------------------------- */
+function endGame(msg) {
+  gameOver = true;
+  messagePopup.textContent = msg;
+  messagePopup.style.display = "block";
+  resetBtn.style.display = "block";
+}
+
+function resetGame() {
+  score = 0;
+  gameOver = false;
+  generateWorld();
+  initLeonard();
+
+  resetBtn.style.display = "none";
+  messagePopup.style.display = "none";
+
+  scoreEl.textContent = "Score: " + score;
+}
+
+resetBtn.onclick = () => resetGame();
+
+/* -------------------------
+   MOVEMENT
+------------------------- */
+function moveLeonard(dx, dy) {
+  if (gameOver || leonard.moving) return;
+
+  leonard.onLog = false;
+
+  const newCol = leonard.col + dx;
+  const newRow = leonard.row + dy;
+
+  if (newCol < 0 || newCol >= COLS || newRow < 0 || newRow >= ROWS) return;
+
+  const terrain = rows[newRow][newCol];
+  if (terrain === TERRAIN.TREE) return;
+
+  leonard.col = newCol;
+  leonard.row = newRow;
+  leonard.targetX = newCol * TILE;
+  leonard.targetY = newRow * TILE;
+  leonard.moving = true;
+  leonard.moveProgress = 0;
+
+  if (dx < 0) leonard.facing = "left";
+  else if (dx > 0) leonard.facing = "right";
+  else leonard.facing = "idle";
+
+  if (dy === -1) {
+    score++;
+    scoreEl.textContent = "Score: " + score;
+  }
+
+  if (newRow === 0) {
+    endGame("Leonard made it across the forest!");
+  }
+}
+
+/* -------------------------
+   TOUCH CONTROLS
+------------------------- */
+let touchStartX = 0;
+let touchStartY = 0;
+let touchEndX = 0;
+let touchEndY = 0;
+const swipeThreshold = 30;
+
+canvas.addEventListener("touchstart", (e) => {
+  const t = e.changedTouches[0];
+  touchStartX = t.clientX;
+  touchStartY = t.clientY;
 });
 
-document.addEventListener("keyup", (e) => {
-    keys[e.key] = false;
+canvas.addEventListener("touchend", (e) => {
+  const t = e.changedTouches[0];
+  touchEndX = t.clientX;
+  touchEndY = t.clientY;
+
+  const dx = touchEndX - touchStartX;
+  const dy = touchEndY - touchStartY;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    if (dx > swipeThreshold) moveLeonard(1, 0);
+    else if (dx < -swipeThreshold) moveLeonard(-1, 0);
+  } else {
+    if (dy > swipeThreshold) moveLeonard(0, 1);
+    else if (dy < -swipeThreshold) moveLeonard(0, -1);
+  }
 });
 
-// =========================
-// Update Player
-// =========================
-function updatePlayer() {
-    if (keys["ArrowLeft"]) {
-        player.x -= player.speed;
-        player.direction = "left";
-    } else if (keys["ArrowRight"]) {
-        player.x += player.speed;
-        player.direction = "right";
-    } else {
-        player.direction = "idle";
+/* -------------------------
+   KEYBOARD CONTROLS
+------------------------- */
+window.addEventListener("keydown", (e) => {
+  if (gameOver && e.key === "Enter") return resetGame();
+  if (e.key === "ArrowLeft") moveLeonard(-1, 0);
+  if (e.key === "ArrowRight") moveLeonard(1, 0);
+  if (e.key === "ArrowUp") moveLeonard(0, -1);
+  if (e.key === "ArrowDown") moveLeonard(0, 1);
+});
+
+/* -------------------------
+   UPDATE FUNCTIONS
+------------------------- */
+function updateLeonard(dt) {
+  if (leonard.x === leonard.targetX && leonard.y === leonard.targetY) {
+    leonard.moving = false;
+  }
+
+  if (leonard.onLog) return;
+  if (!leonard.moving) return;
+
+  leonard.moveProgress += dt * 6;
+
+  if (leonard.moveProgress >= 1) {
+    leonard.x = leonard.targetX;
+    leonard.y = leonard.targetY;
+    leonard.moving = false;
+    leonard.moveProgress = 0;
+  } else {
+    leonard.x += (leonard.targetX - leonard.x) * dt * 6;
+    leonard.y += (leonard.targetY - leonard.y) * dt * 6;
+  }
+}
+
+function updateObstacles(dt) {
+  for (let o of obstacles) {
+    o.x += o.speed * o.direction;
+
+    if (o.type === OBST.MOVING_LOG && leonard.row === o.row) {
+      const lx1 = leonard.x + 4;
+      const lx2 = leonard.x + TILE - 4;
+      const ox1 = o.x;
+      const ox2 = o.x + o.width;
+
+      if (lx2 > ox1 && lx1 < ox2) {
+        leonard.onLog = true;
+        leonard.row = o.row;
+        leonard.y = o.y;
+        leonard.moving = false;
+        leonard.moveProgress = 0;
+        leonard.targetX = leonard.x;
+        leonard.targetY = leonard.y;
+
+        leonard.x += o.speed * o.direction;
+
+        if (leonard.x > canvas.width) leonard.x = -TILE;
+        if (leonard.x < -TILE) leonard.x = canvas.width;
+
+        leonard.col = Math.floor((leonard.x + TILE / 2) / TILE);
+        if (leonard.col < 0) leonard.col = 0;
+        if (leonard.col >= COLS) leonard.col = COLS - 1;
+      }
     }
-}
 
-// =========================
-// Update Animals
-// =========================
-function updateAnimals() {
-    animals.forEach((a) => {
-        if (a.facing === "left") a.x -= a.speed;
-        else a.x += a.speed;
-    });
-
-    // Remove off-screen animals
-    animals = animals.filter(a => a.x > -100 && a.x < canvas.width + 100);
-}
-
-// =========================
-// Draw Player
-// =========================
-function drawPlayer() {
-    if (player.direction === "left") {
-        ctx.drawImage(leonardLeft, player.x, player.y);
-    } else if (player.direction === "right") {
-        ctx.drawImage(leonardRight, player.x, player.y);
-    } else {
-        ctx.drawImage(leonardIdle, player.x, player.y);
+    if (o.type === OBST.MOVING_LOG) {
+      if (o.direction === 1 && o.x > canvas.width + 100) o.x = -200;
+      if (o.direction === -1 && o.x < -200) o.x = canvas.width + 100;
     }
+
+    if (o.type === OBST.BOAR || o.type === OBST.DEER) {
+      if (o.direction === 1 && o.x > canvas.width + 100) o.x = -200;
+      if (o.direction === -1 && o.x < -200) o.x = canvas.width + 100;
+    }
+  }
 }
 
-// =========================
-// Draw Animals
-// =========================
-function drawAnimals() {
-    animals.forEach((a) => {
-        let img;
+/* -------------------------
+   COLLISIONS
+------------------------- */
+function checkCollisions() {
+  const terrain = rows[leonard.row][leonard.col];
 
-        if (a.type === "boar") {
-            img = a.facing === "left" ? boarLeft : boarRight;
-        } else if (a.type === "deer") {
-            img = a.facing === "left" ? deerLeft : deerRight;
+  // water without log
+  if ((terrain === TERRAIN.WATER || logLanes[leonard.row]) && !leonard.onLog) {
+    endGame("Leonard fell into the river!");
+    return;
+  }
+
+  // animals
+  for (let o of obstacles) {
+    if (o.row !== leonard.row) continue;
+
+    const lx = leonard.x + TILE * 0.1;
+    const ly = leonard.y + TILE * 0.1;
+    const lw = TILE * 0.8;
+    const lh = TILE * 0.8;
+
+    if (lx < o.x + o.width &&
+        lx + lw > o.x &&
+        ly < o.y + o.height &&
+        ly + lh > o.y) {
+      if (o.type === OBST.BOAR) endGame("A boar knocked Leonard over!");
+      else if (o.type === OBST.DEER) endGame("Leonard was trampled by a deer!");
+    }
+  }
+}
+
+/* -------------------------
+   DRAW TERRAIN
+------------------------- */
+function drawTerrain() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const t = rows[r][c];
+      const x = c * TILE;
+      const y = r * TILE;
+
+      if (t === TERRAIN.GRASS) {
+        ctx.fillStyle = "#4caf50";
+        ctx.fillRect(x, y, TILE, TILE);
+      } else if (t === TERRAIN.WATER) {
+        ctx.fillStyle = "#1e88e5";
+        ctx.fillRect(x, y, TILE, TILE);
+      } else if (t === TERRAIN.TREE) {
+        ctx.fillStyle = "#4caf50";
+        ctx.fillRect(x, y, TILE, TILE);
+        ctx.fillStyle = "#2e7d32";
+        ctx.fillRect(x + 8, y + 4, TILE - 16, TILE - 8);
+        ctx.fillStyle = "#5d4037";
+        ctx.fillRect(x + TILE/2 - 4, y + TILE - 12, 8, 12);
+      } else if (t === TERRAIN.LOG) {
+
+        // ⭐ Skip drawing ALL stationary logs on moving-log rows
+        if (logLanes[r]) {
+          // Draw water background only
+          ctx.fillStyle = "#1e88e5";
+          ctx.fillRect(x, y, TILE, TILE);
+          continue;
         }
 
-        ctx.drawImage(img, a.x, a.y);
-    });
+        // Draw stationary log
+        ctx.fillStyle = "#1e88e5";
+        ctx.fillRect(x, y, TILE, TILE);
+
+        ctx.fillStyle = "#8d6e63";
+        ctx.fillRect(x + 4, y + 10, TILE - 8, TILE - 20);
+      }
+    }
+  }
 }
 
-// =========================
-// Game Loop
-// =========================
-function gameLoop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+function drawObstacles() {
+  for (let o of obstacles) {
 
-    updatePlayer();
-    updateAnimals();
+    if (o.type === OBST.MOVING_LOG) {
+      ctx.fillStyle = "#8d6e63";
+      ctx.fillRect(o.x, o.y + TILE * 0.2, o.width, o.height);
+      continue;
+    }
 
-    drawPlayer();
-    drawAnimals();
+    // ⭐ PNG SPRITES FOR ANIMALS
+    if (o.type === OBST.BOAR) {
+      const img = o.direction === 1 ? boarRightImg : boarLeftImg;
+      ctx.drawImage(img, o.x, o.y, TILE, TILE);
+      continue;
+    }
 
-    requestAnimationFrame(gameLoop);
+    if (o.type === OBST.DEER) {
+      const img = o.direction === 1 ? deerRightImg : deerLeftImg;
+      ctx.drawImage(img, o.x, o.y, TILE, TILE);
+      continue;
+    }
+  }
 }
 
-gameLoop();
+function drawLeonard() {
+  let img;
+
+  if (leonard.facing === "left") img = leonardLeftImg;
+  else if (leonard.facing === "right") img = leonardRightImg;
+  else img = leonardIdleImg;
+
+  ctx.drawImage(img, leonard.x, leonard.y, TILE, TILE);
+}
+
+let lastTime = 0;
+function loop(ts) {
+  const dt = (ts - lastTime) / 1000;
+  lastTime = ts;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!gameOver) {
+    updateLeonard(dt);
+    updateObstacles(dt);
+    checkCollisions();
+  }
+
+  drawTerrain();
+  drawObstacles();
+  drawLeonard();
+
+  requestAnimationFrame(loop);
+}
+
+resetGame();
+requestAnimationFrame(loop);
 </script>
-
 </body>
 </html>
